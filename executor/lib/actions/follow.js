@@ -48,6 +48,9 @@ async function run (ctx, args) {
       distance: distance === null ? null : round(distance),
       success_reason: 'finite_follow_duration_elapsed'
     }
+    ctx.setEffect(effect)
+    if (distance === null) throw new ActionError('PLAYER_LOST', 'Follow target is no longer visible')
+    if (distance > 3) throw new ActionError('FOLLOW_INCOMPLETE', `Follow ended ${distance.toFixed(2)} blocks from the target`)
     ctx.markVerified(effect)
   } finally {
     stopPathfinding(bot)

@@ -27,7 +27,7 @@ async function run (ctx, args) {
     distance_to_target: round(distance)
   }
   ctx.setEffect(effect)
-  if (distance > args.range + 0.75) {
+  if (distance > args.range + 0.000001) {
     throw new ActionError('GOTO_INCOMPLETE', `Stopped ${distance.toFixed(2)} blocks from target (range ${args.range})`)
   }
   ctx.markVerified(effect)

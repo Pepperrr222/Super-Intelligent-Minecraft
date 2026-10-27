@@ -9,7 +9,7 @@
 ```text
 src/sim_agent/
   app/                 CLI、配置和离线演示，组装各层
-  domain/              目标谓词、任务状态、参数校验、错误类型
+  domain/              TaskSpec、复合目标、约束、状态与参数校验
   planning/            模型适配器、单步规划、提示词
   execution/           任务循环、动作轮询、取消、玩家指令入口
   adapters/            Mineflayer JSONL 客户端、离线 Mock
@@ -61,6 +61,8 @@ sim-evaluate runtime/demo/tasks.jsonl
 3. 连接已启动的本地原版服务器，或按 [运行说明](docs/DEVELOPMENT.md) 创建隔离测试服。
 4. 执行 `python scripts/dev.py run` 或 `sim-agent --config config.json`。
 
+暂未配置 API 时可用 `sim-agent --config config.json --planner rules`。这是有限中文语法基线，支持明确坐标的移动、取料合成交付、物品存放和有限时长跟随；歧义请求会要求澄清。默认 `--planner llm` 使用云模型，不会静默降级成规则模式。
+
 当前执行器面向本机离线认证实验服。聊天仅接受 `agent.owner` 的指令：
 
 ```text
@@ -68,6 +70,8 @@ sim-evaluate runtime/demo/tasks.jsonl
 !agent 采集附近橡木，让背包新增4个橡木木板
 !agent 把背包中的2个橡木木板放入坐标4 -60 0的箱子
 !agent 停止
+!agent 纠正 改放入坐标10 -60 0的箱子
+!agent 回答 来源坐标0 -60 -4，目标坐标8 -60 0
 ```
 
 终端单次任务：
@@ -76,7 +80,15 @@ sim-evaluate runtime/demo/tasks.jsonl
 sim-agent --config config.json --task "去坐标 1 -60 2 附近"
 ```
 
-停止绕过模型，直接取消执行。新任务在忙碌时被拒绝；中途纠正并恢复尚未完成，当前可先停止再重新下达。只有程序复核目标成立，任务才记为完成。
+停止绕过模型，直接取消执行。显式“纠正”先停止旧任务，再把真实进度与新要求交给下一版本；“回答”接续上一次澄清问题。普通新任务在忙碌时仍被拒绝。游戏内进度消息限流，防止原版服将机器人当作刷屏者踢出。只有程序复核目标成立，任务才记为完成。
+
+规则模式的可复现交付示例：
+
+```text
+!agent 从坐标0 -60 -4的箱子取2个橡木原木，做成8块橡木木板，放入坐标8 -60 0的箱子，不砍树
+```
+
+系统在动作前捕获两个箱子的数量基线，完成时检查来源减少2、目标新增8、背包原木和木板净变化为0。目标箱原有木板不会冒充本次交付。
 
 ## 自我学习的实施阶段
 
@@ -100,6 +112,6 @@ sim-agent --config config.json --task "去坐标 1 -60 2 附近"
 - [后续路线](docs/ROADMAP.md)：原版、NLP、学习和整合包适配。
 - [实验约定](benchmarks/README.md)：B0/B1 先导实验与后续消融。
 
-本次开发没有运行真实游戏验收，也没有经验学习提升数据。当前 Mineflayer 后端仅覆盖原版动作集合；未来模组注册表、配方和机器操作通过后端能力接口扩展，整合包兼容需要单独验证。
+已在官方原版 1.21.1 隔离服完成动作、复合任务和真实玩家聊天的受控验收，摘要见 [验收证据](benchmarks/results/vanilla-2026-10-28.json)。测试使用规则基线和明确标识的验收脚本，尚未验证云模型通用理解，也没有经验学习提升数据。当前后端只覆盖原版动作集合，整合包兼容需要单独验证。
 
 依赖参考：[Mineflayer API](https://github.com/PrismarineJS/mineflayer/blob/master/docs/api.md)、[Pathfinder](https://github.com/PrismarineJS/mineflayer-pathfinder)。原始设计保存在 [docs/design](docs/design)。

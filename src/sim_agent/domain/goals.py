@@ -33,6 +33,9 @@ SUPPORTED_GOAL_TYPES = frozenset(
         "near_position",
         "container_at_least",
         "action_succeeded",
+        "all_of",
+        "inventory_delta",
+        "container_delta",
     }
 )
 
@@ -52,6 +55,11 @@ class Goal:
         return canonical_json(self.spec)
 
     def describe(self) -> str:
+        if self.type == "all_of":
+            return "；".join(parse_goal(g).describe() for g in self.spec["goals"])
+        if self.type in {"inventory_delta", "container_delta"}:
+            where = "背包" if self.type == "inventory_delta" else f"容器 {self.spec['position']}"
+            return f"{where}中 {self.spec['item']} 相对任务基线变化 {self.spec['delta']:+d}"
         if self.type == "inventory_at_least":
             return (
                 f"背包中 {self.spec['item']} 至少 "
@@ -80,7 +88,9 @@ class Goal:
         )
 
 
-def parse_goal(raw: Any) -> Goal:
+def parse_goal(raw: Any, *, _depth: int = 0) -> Goal:
+    if _depth > 2:
+        raise ValidationError("复合目标嵌套过深")
     if not isinstance(raw, dict):
         raise ValidationError("goal 必须是对象")
     goal_type = raw.get("type")
@@ -89,6 +99,24 @@ def parse_goal(raw: Any) -> Goal:
             "goal.type 必须是 " + ", ".join(sorted(SUPPORTED_GOAL_TYPES))
         )
 
+    if goal_type == "all_of":
+        _exact_keys(raw, "goal", required={"type", "goals"})
+        if not isinstance(raw["goals"], list) or not 1 <= len(raw["goals"]) <= 8:
+            raise ValidationError("all_of.goals 必须包含 1..8 个目标")
+        children = [parse_goal(g, _depth=_depth + 1).to_dict() for g in raw["goals"]]
+        if sum(1 for _ in goal_leaves(Goal(goal_type, {"type": goal_type, "goals": children}))) > 16:
+            raise ValidationError("复合目标叶子数量超过16")
+        return Goal(goal_type, {"type": goal_type, "goals": children})
+    if goal_type in {"inventory_delta", "container_delta"}:
+        required = {"type", "item", "delta"}
+        if goal_type == "container_delta":
+            required.add("position")
+        _exact_keys(raw, "goal", required=required)
+        spec = {"type": goal_type, "item": canonical_item(raw["item"], "goal.item"),
+                "delta": _int_range(raw["delta"], "goal.delta", -2304, 2304)}
+        if goal_type == "container_delta":
+            spec["position"] = position(raw["position"], "goal.position")
+        return Goal(goal_type, spec)
     if goal_type in {"inventory_at_least", "inventory_increase"}:
         _exact_keys(raw, "goal", required={"type", "item", "count"})
         spec = {
@@ -140,6 +168,18 @@ def parse_goal(raw: Any) -> Goal:
     if "player" in raw:
         spec["player"] = player_name(raw["player"], "goal.player")
     return Goal(goal_type, spec)
+
+
+def goal_leaves(goal: Goal):
+    if goal.type == "all_of":
+        for child in goal.spec["goals"]:
+            yield from goal_leaves(parse_goal(child))
+    else:
+        yield goal
+
+
+def container_key(pos: dict[str, Any]) -> str:
+    return ",".join(f"{float(pos[axis]):.3f}" for axis in ("x", "y", "z"))
 
 
 @dataclass(frozen=True, slots=True)
@@ -226,6 +266,7 @@ class GoalVerifier:
         *,
         observation: dict[str, Any] | None = None,
         container: dict[str, Any] | None = None,
+        containers: dict[str, dict[str, Any]] | None = None,
     ) -> VerificationResult:
         obs = observation
         if obs is None and getattr(state, "observation", None) is not None:
@@ -235,6 +276,43 @@ class GoalVerifier:
                 False, "没有可用观察，无法验证目标。", {"reason": "no_observation"}
             )
 
+        if goal.type == "all_of":
+            checks = [self.verify(parse_goal(child), state, observation=obs,
+                                  containers=containers, container=container)
+                      for child in goal.spec["goals"]]
+            return VerificationResult(all(c.ok for c in checks), "；".join(c.detail for c in checks),
+                                      {"checks": [c.to_dict() for c in checks]})
+        if goal.type == "inventory_delta":
+            if getattr(state, "start_inventory", None) is None or not isinstance(obs.get("inventory"), list):
+                return VerificationResult(False, "库存增量缺少真实基线或当前库存观察。", {"reason": "missing_inventory_baseline"})
+            item = goal.spec["item"]
+            before = (getattr(state, "start_inventory", None) or {}).get(item, 0)
+            actual = observation_inventory(obs).get(item, 0)
+            delta = actual - before
+            return VerificationResult(delta == goal.spec["delta"],
+                f"背包 {item} 基线 {before}，当前 {actual}，变化 {delta:+d}，要求 {goal.spec['delta']:+d}。",
+                {"item": item, "baseline": before, "actual": actual, "delta": delta})
+        if goal.type == "container_delta":
+            key = container_key(goal.spec["position"])
+            current = (containers or {}).get(key, container)
+            baseline = getattr(state, "container_baselines", {}).get(key)
+            if not current or baseline is None:
+                return VerificationResult(False, "容器增量缺少独立基线或当前观察。", {"reason": "missing_container_baseline"})
+            if not isinstance(current.get("items"), list) or not isinstance(baseline.get("items"), list):
+                return VerificationResult(False, "容器未知库存不能视作空库存。", {"reason": "unobserved_container_inventory"})
+            try:
+                actual_key = container_key(current.get("position", {}))
+            except (KeyError, TypeError, ValueError):
+                actual_key = None
+            if actual_key != key:
+                return VerificationResult(False, "容器坐标与目标不一致。", {"reason": "wrong_container"})
+            item = goal.spec["item"]
+            before = _container_counts(baseline).get(item, 0)
+            actual = _container_counts(current).get(item, 0)
+            delta = actual - before
+            return VerificationResult(delta == goal.spec["delta"],
+                f"容器 {key} 的 {item} 基线 {before}，当前 {actual}，变化 {delta:+d}，要求 {goal.spec['delta']:+d}。",
+                {"position": goal.spec["position"], "item": item, "baseline": before, "actual": actual, "delta": delta})
         if goal.type in {"inventory_at_least", "inventory_increase"}:
             counts = observation_inventory(obs)
             item = goal.spec["item"]
@@ -294,6 +372,7 @@ class GoalVerifier:
             )
 
         if goal.type == "container_at_least":
+            container = (containers or {}).get(container_key(goal.spec["position"]), container)
             if not isinstance(container, dict):
                 return VerificationResult(
                     False,

@@ -7,7 +7,8 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from sim_agent.domain.errors import TransportError, ValidationError, WorldChangedError
-from sim_agent.domain.goals import Goal, observation_inventory
+from sim_agent.domain.goals import Goal, observation_inventory, goal_leaves
+from sim_agent.domain.task_spec import TaskSpec
 from sim_agent.observability.jsonl import utc_now
 from sim_agent.domain.validation import canonical_observed_name, position
 
@@ -146,6 +147,10 @@ class TaskState:
     observation_count: int = 0
     world_id: str | None = None
     start_inventory: dict[str, int] | None = None
+    container_baselines: dict[str, dict[str, Any]] = field(default_factory=dict)
+    constraints: dict[str, Any] = field(default_factory=dict)
+    task_version: int = 1
+    continuation_context: dict[str, Any] | None = None
 
     # -- goal ---------------------------------------------------------
     def set_goal(self, goal: Goal) -> None:
@@ -155,16 +160,17 @@ class TaskState:
         if self.goal is not None and not self.goal.equivalent(goal):
             raise ValidationError("任务目标不允许中途更改")
         self.goal = goal
-        if first_bind and goal.type == "inventory_increase":
+        if first_bind:
             if self.start_inventory is not None:
                 counts = self.start_inventory
             elif self.observation is not None:
                 counts = observation_inventory(self.observation.raw)
             else:
                 counts = {}
-            self.goal_baseline = {
-                goal.spec["item"]: counts.get(goal.spec["item"], 0)
-            }
+            self.goal_baseline = dict(counts)
+            for leaf in goal_leaves(goal):
+                if leaf.type in {"inventory_increase", "inventory_delta"}:
+                    self.goal_baseline.setdefault(leaf.spec["item"], 0)
 
     def baseline_count(self, item: str) -> int:
         return int(self.goal_baseline.get(item, 0))
@@ -240,6 +246,7 @@ class TaskState:
         model: str,
         usage: dict[str, Any] | None,
         latency_ms: int,
+        model_call: bool = True,
     ) -> None:
         usage = usage or {}
         integer = lambda key: (
@@ -251,6 +258,7 @@ class TaskState:
             {
                 "step": step_index,
                 "model": model,
+                "model_call": model_call,
                 "prompt_tokens": integer("prompt_tokens"),
                 "completion_tokens": integer("completion_tokens"),
                 "total_tokens": integer("total_tokens"),
@@ -261,6 +269,7 @@ class TaskState:
     def usage_summary(self) -> dict[str, int]:
         return {
             "calls": len(self.usage),
+            "model_calls": sum(bool(item.get("model_call", True)) for item in self.usage),
             "prompt_tokens": sum(item.get("prompt_tokens", 0) for item in self.usage),
             "completion_tokens": sum(
                 item.get("completion_tokens", 0) for item in self.usage
@@ -269,12 +278,23 @@ class TaskState:
         }
 
     # -- model context ------------------------------------------------
+    def task_spec(self) -> dict[str, Any] | None:
+        if self.goal is None:
+            return None
+        return TaskSpec.from_goal(self.goal, world_id=self.world_id,
+            constraints=self.constraints, task_version=self.task_version,
+            containers=self.facts.get("containers", {})).to_dict()
+
     def summary_for_model(self, step_index: int, remaining_seconds: float) -> dict[str, Any]:
         recent = [step.to_dict() for step in self.steps[-8:]]
         return {
             "step_index": step_index,
             "remaining_seconds": round(max(0.0, remaining_seconds), 2),
             "goal": self.goal.to_dict() if self.goal else None,
+            "constraints": self.constraints,
+            "task_version": self.task_version,
+            "task_spec": self.task_spec(),
+            "continuation_context": self.continuation_context,
             "latest_observation": self.observation.raw if self.observation else None,
             "completed_steps": [
                 {
@@ -303,6 +323,11 @@ class TaskState:
             "goal": self.goal.to_dict() if self.goal else None,
             "goal_baseline": self.goal_baseline,
             "start_inventory": self.start_inventory,
+            "container_baselines": self.container_baselines,
+            "task_spec": self.task_spec(),
+            "continuation_context": self.continuation_context,
+            "constraints": self.constraints,
+            "task_version": self.task_version,
             "world_id": self.world_id,
             "observation_count": self.observation_count,
             "decision_count": self.decision_count,

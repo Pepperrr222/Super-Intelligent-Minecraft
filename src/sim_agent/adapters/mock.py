@@ -39,7 +39,7 @@ class MockBackend:
                 raise ExecutorError("NOT_CONTAINER", "Mock fixture has no container there")
             return {"position": args["position"], "items": self._items(items), "world_id": "mock-world", "observed_at": utc_now()}
         if op == "recipes":
-            return {"world_id": "mock-world", "recipes": [{"result": "minecraft:oak_planks", "count": 4, "ingredient": "minecraft:oak_log"}]}
+            return {"world_id": "mock-world", "recipes": [{"result": {"name": "minecraft:oak_planks", "count": 4}, "ingredients": [{"name": "minecraft:oak_log", "count": 1}], "requires_table": False}]}
         if op == "act":
             before = copy.deepcopy(self.inventory)
             kind = args["kind"]

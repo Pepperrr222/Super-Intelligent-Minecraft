@@ -28,7 +28,8 @@ from sim_agent.domain.errors import (
     ValidationError,
     WorldChangedError,
 )
-from sim_agent.domain.goals import Goal, GoalVerifier, VerificationResult, parse_goal
+from sim_agent.domain.goals import Goal, GoalVerifier, VerificationResult, parse_goal, goal_leaves, container_key
+from sim_agent.domain.constraints import parse_constraints, explicit_constraints, merge_constraints, guard_action, check_inventory
 from sim_agent.observability.jsonl import NullLogs, RuntimeLogs, utc_now
 from sim_agent.planning.planner import Planner, build_context
 from sim_agent.domain.state import StepRecord, TaskState, inventory_snapshot, normalize_observation
@@ -66,6 +67,7 @@ class TaskOutcome:
     steps: list[dict[str, Any]] = field(default_factory=list)
     usage: dict[str, int] = field(default_factory=dict)
     final_observation: dict[str, Any] | None = None
+    task_version: int = 1
 
     @property
     def completed(self) -> bool:
@@ -74,6 +76,7 @@ class TaskOutcome:
     def to_dict(self) -> dict[str, Any]:
         return {
             "task_id": self.task_id,
+            "task_version": self.task_version,
             "task": self.task_text,
             "end_state": self.end_state,
             "message": self.message,
@@ -175,6 +178,8 @@ class TaskRunner:
         self._stop_lock = asyncio.Lock()
         self._stop_sent = False
         self._task_id = ""
+        self._pending_action: tuple[ToolCall, str, str] | None = None
+        self._stop_action_id: str | None = None
 
     @property
     def active(self) -> bool:
@@ -198,7 +203,9 @@ class TaskRunner:
                 return
             self._stop_sent = True
             try:
-                await asyncio.wait_for(self._backend.stop(), timeout=5.0)
+                result = await asyncio.wait_for(self._backend.stop(), timeout=5.0)
+                if isinstance(result, dict) and isinstance(result.get("action_id"), str):
+                    self._stop_action_id = result["action_id"]
             except (asyncio.TimeoutError, Exception):
                 # Stop is best-effort during cancellation; the task still ends
                 # honestly as cancelled rather than pretending it succeeded.
@@ -258,8 +265,7 @@ class TaskRunner:
             # Cooperative cancellations complete on this loop turn; anything
             # slower is detached and its result discarded.
             await asyncio.sleep(0)
-            if not task.done():
-                task.add_done_callback(_discard_task_result)
+            task.add_done_callback(_discard_task_result)
 
     async def _request(
         self,
@@ -318,6 +324,8 @@ class TaskRunner:
         goal_json: dict[str, Any] | None = None,
         *,
         task_id: str | None = None,
+        task_version: int = 1,
+        continuation_context: dict[str, Any] | None = None,
     ) -> TaskOutcome:
         if self._active:
             raise RuntimeError("已有任务在运行，不能并发启动第二个任务")
@@ -331,8 +339,13 @@ class TaskRunner:
         self._cancel_event = asyncio.Event()
         self._cancel_reason = ""
         self._stop_sent = False
+        self._pending_action = None
+        self._stop_action_id = None
         self._task_id = task_id or self._task_id_factory()
         state = TaskState(task_id=self._task_id, task_text=task_text.strip())
+        state.task_version = task_version
+        state.continuation_context = continuation_context
+        state.constraints = explicit_constraints(task_text)
         deadline = self._clock() + self._config.agent.task_timeout_seconds
         started_at = utc_now()
         started_monotonic = self._clock()
@@ -359,8 +372,10 @@ class TaskRunner:
             await self._notify("正在观察世界…")
             initial = await self._observe(deadline, cancel_event)
             state.apply_observation(initial)
+            check_inventory(state.constraints, initial)
             if explicit_goal is not None:
                 state.set_goal(explicit_goal)
+                await self._prepare_goal(state, deadline, cancel_event)
             pos = initial["position"]
             await self._notify(
                 f"已观察：{initial['world_id']}，位置 "
@@ -420,8 +435,10 @@ class TaskRunner:
             message = f"任务失败：内部错误（{type(exc).__name__}）。"
             error = _brief(f"{type(exc).__name__}: {exc}", 300)
         finally:
-            if end_state == "cancelled":
+            if end_state == "cancelled" or self._pending_action is not None:
                 await self._stop_once()
+            if self._pending_action is not None:
+                await self._capture_interrupted_action(state)
             self._active = False
 
         finished_at = utc_now()
@@ -440,6 +457,7 @@ class TaskRunner:
             steps=[step.to_dict() for step in state.steps],
             usage=state.usage_summary(),
             final_observation=state.observation.raw if state.observation else None,
+            task_version=state.task_version,
         )
         self._logs.task(
             {
@@ -527,12 +545,14 @@ class TaskRunner:
                 model=reply.model,
                 usage=reply.usage,
                 latency_ms=reply.latency_ms,
+                model_call=reply.model_call,
             )
             self._logs.model_usage(
                 {
                     "task_id": state.task_id,
                     "step": step_index,
                     "model": reply.model,
+                    "model_call": reply.model_call,
                     "usage": reply.usage,
                     "latency_ms": reply.latency_ms,
                 }
@@ -554,6 +574,13 @@ class TaskRunner:
                 continue
 
             # Goal establishment / immutability.
+            proposed_constraints = parse_constraints(decision.constraints)
+            merged = merge_constraints(state.constraints, proposed_constraints)
+            if state.goal is not None and merged != state.constraints:
+                raise ValidationError("任务约束已锁定，模型不能中途更换")
+            state.constraints = merged
+            if state.observation:
+                check_inventory(state.constraints, state.observation.raw)
             if decision.goal is not None:
                 try:
                     proposed_goal = parse_goal(decision.goal)
@@ -571,6 +598,7 @@ class TaskRunner:
                     continue
                 if state.goal is None:
                     state.set_goal(proposed_goal)
+                    await self._prepare_goal(state, deadline, cancel_event)
                     await self._notify(f"目标：{state.goal.describe()}")
                 elif not state.goal.equivalent(proposed_goal):
                     detail = (
@@ -714,6 +742,8 @@ class TaskRunner:
                 evidence=execution.evidence,
             )
             state.add_step(step)
+            if call.op == "act" and state.observation:
+                check_inventory(state.constraints, state.observation.raw)
 
             if execution.status == "succeeded":
                 await self._notify(f"第 {step_index} 步完成。")
@@ -803,6 +833,16 @@ class TaskRunner:
         deadline: float,
         cancel_event: asyncio.Event,
     ) -> _Execution:
+        recipes = None
+        if state.constraints and call.op == "act":
+            fresh = await self._observe(deadline, cancel_event)
+            state.apply_observation(fresh)
+            if call.args["kind"] == "craft" and state.constraints.get("keep_inventory"):
+                response = await self._request("recipes", {"item": call.args["item"]}, deadline, cancel_event)
+                state.check_world(response.get("world_id"))
+                recipes = response.get("recipes", [])
+        guard_action(state.constraints, call.op, call.args,
+                     state.observation.raw if state.observation else {}, recipes)
         if call.op in QUERY_OPS:
             return await self._execute_query(call, state, deadline, cancel_event)
         if call.op == "act":
@@ -881,10 +921,12 @@ class TaskRunner:
         cancel_event: asyncio.Event,
     ) -> _Execution:
         before_observation = state.observation.raw if state.observation else None
+        self._pending_action = (call, "", utc_now())
         response = await self._request("act", call.args, deadline, cancel_event)
         action_id = response.get("action_id")
         if not isinstance(action_id, str) or not action_id:
             raise ValidationError("act 响应缺少 action_id")
+        self._pending_action = (call, action_id, utc_now())
         status_response, fresh_observation = await self._poll_action(
             action_id,
             deadline,
@@ -894,6 +936,7 @@ class TaskRunner:
         if fresh_observation is not None:
             state.apply_observation(fresh_observation)
         status = status_response.get("status")
+        self._pending_action = None
         after_observation = state.observation.raw if state.observation else None
         evidence = {
             "action_id": action_id,
@@ -934,6 +977,29 @@ class TaskRunner:
                 action_id=action_id,
             )
         raise ValidationError(f"未知动作状态: {status}")
+
+    async def _capture_interrupted_action(self, state: TaskState) -> None:
+        """Cancellation ends planning, not our obligation to preserve effects."""
+        pending = self._pending_action
+        self._pending_action = None
+        if pending is None:
+            return
+        call, action_id, started_at = pending
+        action_id = action_id or self._stop_action_id or ""
+        status: dict[str, Any] = {"action_id": action_id, "status": "unknown"}
+        try:
+            if action_id:
+                status = await asyncio.wait_for(self._backend.request("action_status", {"action_id": action_id}, timeout=2), 2.1)
+            fresh = await asyncio.wait_for(self._backend.request("observe", {}, timeout=2), 2.1)
+            state.apply_observation(fresh)
+        except Exception as exc:
+            status["capture_error"] = type(exc).__name__
+        terminal = status.get("status")
+        state.add_step(StepRecord(index=state.decision_count, op=call.op, args=call.args,
+            status=terminal if terminal in {"succeeded", "failed", "cancelled"} else "interrupted",
+            started_at=started_at, finished_at=utc_now(), action_id=action_id,
+            result=status, evidence={"action": status, "partial_effects_preserved": True},
+            error=None if terminal == "succeeded" else "任务中断，保留实际动作状态和部分效果"))
 
     async def _poll_action(
         self,
@@ -1069,6 +1135,23 @@ class TaskRunner:
         return container
 
     # ------------------------------------------------------------------
+    async def _prepare_goal(self, state: TaskState, deadline: float, cancel_event: asyncio.Event) -> None:
+        """Capture container deltas before the first world-changing step."""
+        if state.goal is None:
+            return
+        for goal in goal_leaves(state.goal):
+            if goal.type != "container_delta":
+                continue
+            key = container_key(goal.spec["position"])
+            if key not in state.container_baselines:
+                guard_action(state.constraints, "inspect_container", {"position": goal.spec["position"]},
+                             state.observation.raw if state.observation else {})
+                state.container_baselines[key] = await self._inspect_container_payload(
+                    goal.spec["position"], state, deadline, cancel_event)
+        # Baseline inspection may navigate; keep the planner's location fresh.
+        if state.container_baselines:
+            state.apply_observation(await self._observe(deadline, cancel_event))
+
     async def _verify_live(
         self,
         goal: Goal,
@@ -1081,12 +1164,21 @@ class TaskRunner:
         await self._notify("正在复核目标…")
         observation = await self._observe(deadline, cancel_event)
         state.apply_observation(observation)
+        check_inventory(state.constraints, observation)
         container: dict[str, Any] | None = None
-        if goal.type == "container_at_least":
+        containers: dict[str, dict[str, Any]] = {}
+        for leaf in goal_leaves(goal):
+            if leaf.type not in {"container_at_least", "container_delta"}:
+                continue
+            key = container_key(leaf.spec["position"])
+            if key in containers:
+                continue
             try:
+                guard_action(state.constraints, "inspect_container", {"position": leaf.spec["position"]}, observation)
                 container = await self._inspect_container_payload(
-                    goal.spec["position"], state, deadline, cancel_event
+                    leaf.spec["position"], state, deadline, cancel_event
                 )
+                containers[key] = container
             except (TaskCancelled, DeadlineExceeded):
                 raise
             except AgentError as exc:
@@ -1095,11 +1187,17 @@ class TaskRunner:
                     f"无法复核目标容器：{_brief(str(exc), 160)}",
                     {"error": _brief(str(exc), 300)},
                 )
+        # Container inspection may navigate or pick up nearby drops. Never
+        # verify position/inventory against the snapshot from before inspection.
+        if containers:
+            state.apply_observation(await self._observe(deadline, cancel_event))
+            check_inventory(state.constraints, state.observation.raw)
         return self._verifier.verify(
             goal,
             state,
             observation=state.observation.raw if state.observation else observation,
             container=container,
+            containers=containers,
         )
 
     def _describe_call(self, call: ToolCall) -> str:

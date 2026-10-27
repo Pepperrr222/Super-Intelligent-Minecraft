@@ -26,7 +26,7 @@ class DemoPlanner:
         ])
 
     async def decide(self, context, timeout):
-        return PlannerReply(json.dumps({"goal": self.goal, "step": next(self.steps)}), {}, "scripted-demo", 0)
+        return PlannerReply(json.dumps({"goal": self.goal, "step": next(self.steps)}), {}, "scripted-demo", 0, model_call=False)
 
 
 async def run_demo(config_path: Path, output: Path) -> dict:

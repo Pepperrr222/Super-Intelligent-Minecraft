@@ -80,6 +80,7 @@ class ProjectTests(unittest.TestCase):
             report = summarize(records)
             self.assertEqual(report["verified_successes"], 1)
             self.assertEqual(report["mutation_actions"], 3)
+            self.assertEqual(report["model_calls"], 0)
             self.assertTrue((out / "memory.sqlite3").exists())
 
     def test_unverified_completion_not_success_and_failures_kept(self):

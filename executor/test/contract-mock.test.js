@@ -9,6 +9,7 @@ const {
   windowInventoryCounts
 } = require('../lib/containers')
 const { configureMovements } = require('../lib/game')
+const { makePointGoal } = require('../lib/game')
 const { verifyFuelInsertion } = require('../lib/actions/smelt')
 
 test('1.21.1 chest/barrel windows are accepted as generic_9x3/9x6', () => {
@@ -43,6 +44,14 @@ test('pathfinder movements never dig, tower, free-move or scaffold', () => {
   assert.equal(bot.pathfinder.movements, movements)
   assert.equal(bot.pathfinder.thinkTimeout, 5000)
   assert.equal(bot.pathfinder.tickTimeout, 40)
+})
+
+test('navigation checks player centers rather than integer-node distance', () => {
+  const goal = makePointGoal({ x: 2, y: -60, z: -2 }, 1, class {})
+  assert.equal(goal.isEnd({ x: 2, y: -60, z: -1 }), false)
+  assert.equal(goal.isEnd({ x: 2, y: -60, z: -2 }), true)
+  assert.equal(goal.isEnd({ x: 1, y: -60, z: -2 }), true)
+  assert.ok(goal.heuristic({ x: 20, y: -60, z: 20 }) > 1)
 })
 
 test('fuel insertion is proven by inventory decrease even when the slot is already empty', () => {

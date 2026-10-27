@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from typing import Any, Callable
 
 from sim_agent.app.config import AppConfig
@@ -38,6 +39,12 @@ class AgentService:
         self._current: asyncio.Task[None] | None = None
         self._pending_stop = False
         self._disconnected = False
+        self._task_version = 0
+        self._task_text = ""
+        self._last_outcome: TaskOutcome | None = None
+        self._revision_task: asyncio.Task[None] | None = None
+        self._say_lock = asyncio.Lock()
+        self._last_say = 0.0
         self._runner = TaskRunner(
             backend,
             planner,
@@ -79,8 +86,15 @@ class AgentService:
         if self._disconnected:
             return False
         try:
-            await self._backend.request("say", {"message": text}, timeout=3.0)
-            return True
+            async with self._say_lock:
+                delay = 1.2 - (time.monotonic() - self._last_say)
+                if delay > 0:
+                    if quiet:
+                        return False  # Coalesce progress; never queue stale chatter.
+                    await asyncio.sleep(delay)
+                self._last_say = time.monotonic()
+                await self._backend.request("say", {"message": text}, timeout=3.0)
+                return True
         except (AgentError, asyncio.TimeoutError):
             return False
         except Exception:
@@ -106,7 +120,38 @@ class AgentService:
         command = message[len(prefix) :].strip()
         if command.casefold() in _STOP_COMMANDS:
             return await self.stop_current(source="chat")
-        if self._busy:
+        clarification_context = None
+        if command.startswith("回答"):
+            answer = command[2:].strip(" ：:")
+            if self._busy or not self._last_outcome or self._last_outcome.end_state != "needs_clarification":
+                await self._say("当前没有等待回答的澄清问题。", quiet=False)
+                return "idle"
+            if not answer:
+                return "empty"
+            clarification_context = {
+                "original_task": self._task_text,
+                "question": self._last_outcome.message,
+                "answer": answer,
+                "previous_goal": self._last_outcome.goal,
+                "verified_steps": [s for s in self._last_outcome.steps if s["status"] == "succeeded"],
+                "last_observation": self._last_outcome.final_observation,
+            }
+            command = answer
+        if command.startswith("纠正"):
+            correction = command[2:].strip(" ：:")
+            if not correction:
+                await self._say("请说明如何纠正，例如：!agent 纠正 改放入坐标8 -60 0的箱子。", quiet=False)
+                return "empty"
+            if not self._busy:
+                await self._say("当前没有执行中的任务。", quiet=False)
+                return "idle"
+            if self._revision_task and not self._revision_task.done():
+                return "busy"
+            self._task_version += 1
+            self._revision_task = asyncio.create_task(self._correct_task(correction, self._task_version))
+            self._revision_task.add_done_callback(self._consume_task_result)
+            return "correcting"
+        if self._busy or (self._revision_task and not self._revision_task.done()):
             await self._say("正在执行另一个任务，请稍后再试。", quiet=False)
             self._logs.task(
                 {
@@ -121,9 +166,12 @@ class AgentService:
             return "empty"
 
         self._busy = True
+        self._task_version += 1
+        self._task_text = command
+        self._last_outcome = None
         self._pending_stop = False
         self._current = asyncio.create_task(
-            self._chat_task(command), name="basic-agent-chat-task"
+            self._chat_task(command, self._task_version, clarification_context), name="basic-agent-chat-task"
         )
         self._current.add_done_callback(self._consume_task_result)
         return "started"
@@ -134,14 +182,15 @@ class AgentService:
         except (asyncio.CancelledError, Exception):
             pass
 
-    async def _chat_task(self, command: str) -> None:
+    async def _chat_task(self, command: str, version: int = 1, continuation: dict | None = None) -> None:
         try:
             if self._pending_stop:
                 self._pending_stop = False
                 await self._say("已取消任务。", quiet=False)
                 return
             try:
-                outcome = await self._runner.run(command)
+                outcome = await self._runner.run(command, task_version=version, continuation_context=continuation)
+                self._last_outcome = outcome
             except Exception as exc:
                 self._emit(f"任务启动失败：{type(exc).__name__}: {exc}")
                 await self._say(f"任务启动失败：{type(exc).__name__}", quiet=False)
@@ -151,7 +200,37 @@ class AgentService:
             self._busy = False
             self._current = None
 
+    async def _correct_task(self, correction: str, version: int) -> None:
+        current = self._current
+        original = self._task_text
+        await self._runner.cancel("玩家纠正任务")
+        if not self._runner.active:
+            self._pending_stop = True
+        if current is not None:
+            try:
+                await asyncio.wait_for(asyncio.shield(current), 8.0)
+            except asyncio.TimeoutError:
+                await self._say("旧任务仍在停止，未启动纠正后的动作。请稍后重试。", quiet=False)
+                return
+        if version != self._task_version or self._disconnected:
+            return
+        prior = self._last_outcome
+        continuation = {
+            "original_task": original,
+            "correction": correction,
+            "previous_task_id": prior.task_id if prior else None,
+            "previous_goal": prior.goal if prior else None,
+            "verified_steps": [s for s in prior.steps if s["status"] == "succeeded"][-8:] if prior else [],
+            "last_observation": prior.final_observation if prior else None,
+            "note": "Re-observe current state. Preserve completed work; do not repeat material consumption.",
+        }
+        self._busy = True
+        self._pending_stop = False
+        self._current = asyncio.create_task(self._chat_task(correction, version, continuation))
+        self._current.add_done_callback(self._consume_task_result)
+
     async def stop_current(self, *, source: str = "chat") -> str:
+        self._task_version += 1
         if not self._busy:
             if source == "chat":
                 await self._say("当前没有执行中的任务。", quiet=False)
@@ -254,6 +333,7 @@ class AgentService:
                 pass
 
     async def shutdown(self) -> None:
+        self._task_version += 1
         if self._busy or self._runner.active:
             await self._runner.cancel("代理关闭")
         task = self._current
@@ -263,3 +343,6 @@ class AgentService:
             except (asyncio.TimeoutError, asyncio.CancelledError):
                 pass
         await self._backend.shutdown()
+        if self._revision_task and not self._revision_task.done():
+            self._revision_task.cancel()
+            await asyncio.gather(self._revision_task, return_exceptions=True)

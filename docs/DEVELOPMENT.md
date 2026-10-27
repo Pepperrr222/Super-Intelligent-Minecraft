@@ -40,11 +40,17 @@ python scripts/setup_lab.py --accept-eula
 
 另开终端运行 `python scripts/dev.py run`。也可使用根目录 run.ps1 / run.sh。CLI 退出码：0 表示任务完成，1 表示任务未完成，2 为配置或参数问题，3 为连接等 Agent 错误。
 
+无需密钥的试用：`sim-agent --planner rules --config config.json`。规则模式要求明确坐标和物品数量，示例见 README。云模型模式默认启用，模型 ID 和密钥需要自行配置，不会自动调用未授权的付费服务。
+
 ## 真实动作验收
 
 scripts/fixture_commands.txt 是管理员场景夹具，只对隔离测试世界操作。建立场景后执行 `python scripts/smoke_executor.py`。夹具和 Agent 的操作入口分离，Agent 没有服务器控制台、生成物品或传送工具。
 
 真实验收日志输出 runtime/executor-smoke.json，即使失败也应保留。不要把该动作级验收当成自然语言任务级验收。
+
+完整自动化验收：先停止手动测试服，再运行 `python scripts/live_acceptance.py --java <Java21路径>`。该脚本仅启动自己的 127.0.0.1:25575 服务，不占用已有服务器，也不杀死其他进程；依次执行动作、中文规则任务和双玩家聊天验收，最后正常关闭。
+
+自动验收会重建隔离场景。失败、通过记录与服务端日志按运行编号归档到 runtime/acceptance/。代码在运行中变化时，该轮不会被视为稳定验收。通过后用 `python scripts/export_acceptance.py` 导出公开摘要和源码 SHA-256，原始日志留在本地。
 
 ## 日志
 
@@ -53,6 +59,8 @@ scripts/fixture_commands.txt 是管理员场景夹具，只对隔离测试世界
 - runtime/usage.jsonl：实际模型用量。
 - runtime/memory.sqlite3：轨迹、候选技能与复验关联。
 - runtime/demo/：明确标记 MOCK_ONLY 的离线演示。
+- runtime/task-evidence/、runtime/chat-evidence/：真实任务和聊天的完整日志。
+- runtime/acceptance/：按运行编号归档的真实验收证据。
 
 `sim-evaluate runtime/tasks.jsonl` 汇总一组同环境同版本试验，不混入 demo。缺失验证或验证为 false 的 completed 不计成功；取消、失败和超时仍保留分母。
 

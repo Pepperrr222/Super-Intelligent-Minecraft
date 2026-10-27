@@ -160,6 +160,7 @@ class Decision:
     goal: dict[str, Any] | None
     step: ToolCall
     message: str
+    constraints: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         value: dict[str, Any] = {"step": self.step.to_dict()}
@@ -310,7 +311,7 @@ def parse_decision(text: str) -> Decision:
         raise ValidationError(f"模型输出不是有效 JSON（第 {exc.lineno} 列 {exc.colno}）") from exc
     if not isinstance(raw, dict):
         raise ValidationError("模型输出根节点必须是对象")
-    _exact_keys(raw, "decision", required={"step"}, optional={"goal", "message"})
+    _exact_keys(raw, "decision", required={"step"}, optional={"goal", "message", "constraints"})
     _reject_forbidden_keys(raw, "decision")
     goal = raw.get("goal")
     if goal is not None and not isinstance(goal, dict):
@@ -320,7 +321,7 @@ def parse_decision(text: str) -> Decision:
     if message_raw is not None and message_raw != "":
         message = _string(message_raw, "decision.message", max_len=500, allow_slash=True)
     step = validate_step(raw["step"])
-    return Decision(goal=goal, step=step, message=message)
+    return Decision(goal=goal, step=step, message=message, constraints=raw.get("constraints"))
 
 
 def canonical_json(value: Any) -> str:

@@ -14,4 +14,4 @@ Use Python 3.12+ and Node 22+. Work from the repository root.
 - Do not describe offline mocks as real-server or model acceptance tests.
 - Backend capabilities need parameters, effect evidence, cancellation limits and tests.
 
-Current milestone: vanilla execution. Complex mod machines, automatic B2/B3 execution and mid-task correction are future work.
+Current milestone: vanilla execution. Explicit correction/clarification and composite delta goals are implemented. Complex mod machines and automatic B2/B3 execution remain future work. Real-server acceptance uses scripts/live_acceptance.py; rules/scripted tests must not be described as cloud-LLM evaluation.

@@ -27,6 +27,7 @@ from sim_agent.planning.planner import LLMPlanner
 from sim_agent.execution.service import AgentService
 from sim_agent.adapters.mineflayer import ExecutorClient
 from sim_agent.memory.store import ExperienceStore
+from sim_agent.planning.rules import RulePlanner
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -51,6 +52,7 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument("--version", action="version", version=__version__)
+    parser.add_argument("--planner", choices=["llm", "rules"], default="llm", help="llm 为云模型；rules 为无需密钥的有限中文语法基线")
     return parser
 
 
@@ -84,7 +86,7 @@ async def _run(args: argparse.Namespace, config: Any, goal_json: dict[str, Any] 
     logs = RuntimeLogs(config.runtime_dir)
     memory = ExperienceStore(config.runtime_dir / "memory.sqlite3")
     backend = ExecutorClient(config, logs)
-    planner = LLMPlanner(DeepSeekClient(config.model))
+    planner = RulePlanner() if args.planner == "rules" else LLMPlanner(DeepSeekClient(config.model))
     service = AgentService(
         backend,
         planner,

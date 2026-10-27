@@ -75,9 +75,23 @@ function configureMovements (bot, MovementsClass) {
   return movements
 }
 
+function makePointGoal (position, range, GoalClass = getPathfinder().goals.Goal) {
+  // Pathfinder nodes use block corners, but players stand near block centers.
+  // GoalNear checks integer nodes and can stop over a block outside the actual
+  // requested sphere. Use the same world-space metric as the verifier.
+  return new (class extends GoalClass {
+    heuristic (node) {
+      return Math.max(0, distanceToPoint({ x: node.x + 0.5, y: node.y, z: node.z + 0.5 }, position) - range)
+    }
+
+    isEnd (node) {
+      return distanceToPoint({ x: node.x + 0.5, y: node.y, z: node.z + 0.5 }, position) <= range
+    }
+  })()
+}
+
 async function gotoPosition (ctx, position, range = 1) {
-  const { goals } = getPathfinder()
-  const goal = new goals.GoalNear(position.x, position.y, position.z, range)
+  const goal = makePointGoal(position, range)
   try {
     await ctx.wait(ctx.bot.pathfinder.goto(goal))
   } catch (err) {
@@ -85,6 +99,7 @@ async function gotoPosition (ctx, position, range = 1) {
     throw new ActionError('PATHFIND_FAILED', `Could not reach destination: ${err.message}`)
   }
   ctx.check()
+  await ctx.sleep(200) // Let the final physics tick settle before measuring.
 }
 
 async function ensureNearBlock (ctx, block, interactionRange = 4.25) {
@@ -215,6 +230,7 @@ module.exports = {
   distanceToBlock,
   configureMovements,
   gotoPosition,
+  makePointGoal,
   ensureNearBlock,
   stopPathfinding,
   candidateTool,

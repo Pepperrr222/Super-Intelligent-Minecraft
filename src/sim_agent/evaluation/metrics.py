@@ -19,7 +19,8 @@ def summarize(records: list[dict]) -> dict:
             "success_rate": verified / len(tasks) if tasks else None,
             "unverified_completions": false_reports, "end_states": dict(states),
             "mean_duration_seconds": mean(r["duration_seconds"] for r in tasks) if tasks else None,
-            "model_calls": sum(r.get("usage", {}).get("calls", 0) for r in tasks),
+            "planner_calls": sum(r.get("usage", {}).get("calls", 0) for r in tasks),
+            "model_calls": sum(r.get("usage", {}).get("model_calls", r.get("usage", {}).get("calls", 0)) for r in tasks),
             "total_tokens": sum(r.get("usage", {}).get("total_tokens", 0) for r in tasks),
             "mutation_actions": sum(s.get("op") == "act" for r in tasks for s in r.get("steps", []))}
 
