@@ -1,0 +1,6 @@
+{
+  "minecraft": {"host":"127.0.0.1","port":25575,"version":"1.21.1","username":"BasicAgent","auth":"offline","world_id":"basic-lab-v1"},
+  "agent": {"owner":"Doctor_Pepper","prefix":"!agent ","max_steps":12,"task_timeout_seconds":300,"poll_seconds":0.25},
+  "model": {"base_url":"https://api.deepseek.com","name":"deepseek-flash","key_file":"/home/pcn789/minemind-lab/deepseek.key","timeout_seconds":45},
+  "runtime_dir":"runtime"
+}

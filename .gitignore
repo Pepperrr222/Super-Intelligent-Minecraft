@@ -1,0 +1,7 @@
+config.json
+.venv/
+__pycache__/
+*.pyc
+executor/node_modules/
+runtime/
+.DS_Store

@@ -1,0 +1,21 @@
+# ADMINISTRATIVE TEST FIXTURE ONLY. These commands are never exposed to the model.
+# Run in the isolated server console before joining / running smoke tests.
+gamerule doDaylightCycle false
+gamerule doWeatherCycle false
+gamerule doMobSpawning false
+gamerule spawnRadius 0
+time set day
+weather clear
+setworldspawn 0 -60 0
+fill -12 -60 -12 12 -56 12 minecraft:air
+fill -12 -61 -12 12 -61 12 minecraft:grass_block
+setblock 4 -60 0 minecraft:chest
+item replace block 4 -60 0 container.0 with minecraft:raw_iron 4
+item replace block 4 -60 0 container.1 with minecraft:coal 4
+setblock 6 -60 0 minecraft:furnace[facing=south]
+setblock 2 -60 0 minecraft:crafting_table
+setblock 4 -60 4 minecraft:oak_log
+setblock 5 -60 4 minecraft:oak_log
+setblock 6 -60 4 minecraft:oak_log
+setblock 7 -60 4 minecraft:oak_log
+setblock 8 -60 4 minecraft:oak_log

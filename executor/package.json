@@ -1,0 +1,20 @@
+{
+  "name": "minecraft-basic-agent-executor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "JSONL Mineflayer executor for the vanilla Minecraft 1.21.1 basic agent",
+  "main": "server.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "mineflayer": "4.39.0",
+    "mineflayer-pathfinder": "2.4.5",
+    "vec3": "0.2.0"
+  }
+}
