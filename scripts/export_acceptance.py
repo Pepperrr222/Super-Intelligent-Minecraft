@@ -32,6 +32,7 @@ def main():
         "stop_command_to_task_end_seconds": chat["stop_seconds"],
         "check_count": sum(len(x["checks"]) for x in [actions, tasks, chat]),
         "source_manifest": metadata["source_manifest"],
+        "source_hash_format": metadata.get("source_hash_format", "raw bytes"),
         "limitations": ["Checks are not independent statistical trials", "No general LLM capability or B1/B2/B3 improvement is claimed", "No modpack compatibility acceptance"],
     }
     output = ROOT / "benchmarks/results" / f"vanilla-{date}.json"

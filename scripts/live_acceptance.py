@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def source_manifest():
     paths = list((ROOT / "src/sim_agent").rglob("*.py")) + list((ROOT / "executor/lib").rglob("*.js")) + list((ROOT / "scripts").glob("*.py"))
     paths += [ROOT / "executor/server.js", ROOT / "executor/package-lock.json", ROOT / "scripts/fixture_commands.txt"]
-    return {str(p.relative_to(ROOT)).replace("\\", "/"): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(paths)}
+    return {str(p.relative_to(ROOT)).replace("\\", "/"): hashlib.sha256(p.read_bytes().replace(b"\r\n", b"\n")).hexdigest() for p in sorted(paths)}
 
 
 async def run(args):
@@ -108,7 +108,7 @@ async def run(args):
                 shutil.copy2(path, archive / name)
         after = source_manifest()
         unchanged = source_before == after
-        (archive / "run.json").write_text(json.dumps({"run_id": run_id, "status": status if unchanged else "source_changed_during_run", "source_manifest": after}, indent=2), encoding="utf-8")
+        (archive / "run.json").write_text(json.dumps({"run_id": run_id, "status": status if unchanged else "source_changed_during_run", "source_hash_format": "SHA-256 after normalizing text line endings to LF", "source_manifest": after}, indent=2), encoding="utf-8")
         if status == "passed" and not unchanged:
             raise RuntimeError("Source changed during acceptance; rerun a stable checkout")
 
