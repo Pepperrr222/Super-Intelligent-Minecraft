@@ -48,7 +48,9 @@ class ProjectTests(unittest.TestCase):
 
     def test_config_relative_paths_and_future_mode_rejection(self):
         with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
+            # Windows runners can expose TEMP via an 8.3 alias (RUNNER~1).
+            # Configuration intentionally resolves it to the canonical path.
+            root = Path(tmp).resolve()
             data = json.loads((ROOT / "config.example.json").read_text(encoding="utf-8"))
             path = root / "config.json"
             path.write_text(json.dumps(data), encoding="utf-8")
