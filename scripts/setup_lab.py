@@ -1,5 +1,6 @@
 """Download the official Mojang server into an isolated, loopback-only lab."""
 import hashlib
+import argparse
 import json
 from pathlib import Path
 import urllib.request
@@ -15,6 +16,11 @@ def get_json(url):
 
 
 def main():
+    parser = argparse.ArgumentParser(description='Prepare isolated vanilla server')
+    parser.add_argument('--accept-eula', action='store_true', help='Accept https://aka.ms/MinecraftEULA for this lab')
+    args = parser.parse_args()
+    if not args.accept_eula:
+        parser.error('Read https://aka.ms/MinecraftEULA and pass --accept-eula to prepare the lab')
     LAB.mkdir(parents=True, exist_ok=True)
     manifest = get_json('https://piston-meta.mojang.com/mc/game/version_manifest_v2.json')
     entry = next(v for v in manifest['versions'] if v['id'] == VERSION)

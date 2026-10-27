@@ -15,8 +15,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
-from .config import ModelConfig
-from .errors import ModelError, ModelTimeout
+from sim_agent.app.config import ModelConfig
+from sim_agent.domain.errors import ModelError, ModelTimeout
 
 _MAX_RESPONSE_BYTES = 2_000_000
 

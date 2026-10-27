@@ -1,0 +1,16 @@
+{
+  "status": "planned_live_scenarios",
+  "minecraft_version": "1.21.1",
+  "scenarios_per_category": 5,
+  "modes": ["B0", "B1"],
+  "categories": [
+    {"id": "navigation", "goal": "到达指定范围，遇阻正确失败"},
+    {"id": "collection", "goal": "采集并获得指定物品增量"},
+    {"id": "container_transfer", "goal": "指定容器取放和数量守恒"},
+    {"id": "crafting", "goal": "按配方消耗材料并获得真实产物"},
+    {"id": "smelting", "goal": "投入原料燃料并取回产物"},
+    {"id": "interruption", "goal": "停止旧任务；中途纠正作为后续扩展"}
+  ],
+  "pilot_trials": 60,
+  "requires": ["independent_world_reset", "frozen_memory_snapshot", "live_acceptance"]
+}

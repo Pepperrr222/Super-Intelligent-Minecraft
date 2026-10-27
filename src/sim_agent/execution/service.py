@@ -5,12 +5,13 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Callable
 
-from .config import AppConfig
-from .errors import AgentError, TransportError
-from .jsonl import NullLogs, RuntimeLogs
-from .planner import Planner
-from .runner import TaskOutcome, TaskRunner
-from .transport import Backend
+from sim_agent.app.config import AppConfig
+from sim_agent.domain.errors import AgentError, TransportError
+from sim_agent.observability.jsonl import NullLogs, RuntimeLogs
+from sim_agent.planning.planner import Planner
+from sim_agent.execution.runner import TaskOutcome, TaskRunner
+from sim_agent.adapters.mineflayer import Backend
+from sim_agent.memory.store import ExperienceStore
 
 Emit = Callable[[str], None]
 _STOP_COMMANDS = {"停止", "停止任务", "stop", "cancel", "取消"}
@@ -26,6 +27,7 @@ class AgentService:
         *,
         emit: Emit | None = None,
         chat_progress: bool = True,
+        memory: ExperienceStore | None = None,
     ) -> None:
         self._backend = backend
         self._config = config
@@ -42,6 +44,7 @@ class AgentService:
             config,
             logs,
             notify=self._notify_progress,
+            memory=memory,
         )
 
     @property

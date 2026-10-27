@@ -18,21 +18,21 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from basic_agent.config import (  # noqa: E402
+from sim_agent.app.config import (  # noqa: E402
     AgentConfig,
     AppConfig,
     MinecraftConfig,
     ModelConfig,
 )
-from basic_agent.errors import TransportTimeout, ValidationError  # noqa: E402
-from basic_agent.goals import parse_goal  # noqa: E402
-from basic_agent.jsonl import RuntimeLogs  # noqa: E402
-from basic_agent.planner import PlannerReply  # noqa: E402
-from basic_agent.runner import TaskRunner  # noqa: E402
-from basic_agent.service import AgentService  # noqa: E402
-from basic_agent.state import TaskState  # noqa: E402
-from basic_agent.transport import ExecutorClient  # noqa: E402
-from basic_agent.validation import parse_decision, validate_step  # noqa: E402
+from sim_agent.domain.errors import TransportTimeout, ValidationError  # noqa: E402
+from sim_agent.domain.goals import parse_goal  # noqa: E402
+from sim_agent.observability.jsonl import RuntimeLogs  # noqa: E402
+from sim_agent.planning.planner import PlannerReply  # noqa: E402
+from sim_agent.execution.runner import TaskRunner  # noqa: E402
+from sim_agent.execution.service import AgentService  # noqa: E402
+from sim_agent.domain.state import TaskState  # noqa: E402
+from sim_agent.adapters.mineflayer import ExecutorClient  # noqa: E402
+from sim_agent.domain.validation import parse_decision, validate_step  # noqa: E402
 
 
 # ---------------------------------------------------------------------------

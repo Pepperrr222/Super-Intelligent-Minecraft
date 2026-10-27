@@ -14,9 +14,9 @@ from collections import deque
 from pathlib import Path
 from typing import Any, Protocol
 
-from .config import AppConfig
-from .errors import ExecutorError, TransportError, TransportTimeout
-from .jsonl import NullLogs, RuntimeLogs
+from sim_agent.app.config import AppConfig
+from sim_agent.domain.errors import ExecutorError, TransportError, TransportTimeout
+from sim_agent.observability.jsonl import NullLogs, RuntimeLogs
 
 _MAX_LINE = 1_000_000
 _ALLOWED_EVENTS = {"ready", "chat", "disconnect", "error"}
@@ -63,7 +63,7 @@ class ExecutorClient:
         if server_script is not None:
             self._server_script = Path(server_script)
         else:
-            self._server_script = config.config_path.parent / "executor" / "server.js"
+            self._server_script = Path(__file__).resolve().parents[3] / "executor" / "server.js"
         self._request_timeout = request_timeout
         self._startup_timeout = startup_timeout
 

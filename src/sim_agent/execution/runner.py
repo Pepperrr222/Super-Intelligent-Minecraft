@@ -14,8 +14,8 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable
 
-from .config import AppConfig
-from .errors import (
+from sim_agent.app.config import AppConfig
+from sim_agent.domain.errors import (
     AgentError,
     DeadlineExceeded,
     ExecutorError,
@@ -28,12 +28,14 @@ from .errors import (
     ValidationError,
     WorldChangedError,
 )
-from .goals import Goal, GoalVerifier, VerificationResult, parse_goal
-from .jsonl import NullLogs, RuntimeLogs, utc_now
-from .planner import Planner, build_context
-from .state import StepRecord, TaskState, inventory_snapshot, normalize_observation
-from .transport import Backend
-from .validation import (
+from sim_agent.domain.goals import Goal, GoalVerifier, VerificationResult, parse_goal
+from sim_agent.observability.jsonl import NullLogs, RuntimeLogs, utc_now
+from sim_agent.planning.planner import Planner, build_context
+from sim_agent.domain.state import StepRecord, TaskState, inventory_snapshot, normalize_observation
+from sim_agent.adapters.mineflayer import Backend
+from sim_agent.memory.store import ExperienceStore
+from sim_agent.memory.retrieval import episode_context
+from sim_agent.domain.validation import (
     QUERY_OPS,
     ToolCall,
     canonical_json,
@@ -153,8 +155,10 @@ class TaskRunner:
         request_timeout: float = 10.0,
         clock: Callable[[], float] = time.monotonic,
         task_id_factory: Callable[[], str] | None = None,
+        memory: ExperienceStore | None = None,
     ) -> None:
         self._backend = backend
+        self._memory = memory
         self._planner = planner
         self._config = config
         self._logs = logs or NullLogs()
@@ -444,6 +448,12 @@ class TaskRunner:
                 "state": state.to_dict(),
             }
         )
+        if self._memory is not None and state.world_id:
+            try:
+                self._memory.record_episode(outcome.to_dict(), world_id=state.world_id,
+                                            ruleset_id=self._config.learning.ruleset_id)
+            except Exception as exc:
+                self._logs.task({"type": "memory_write_failed", "task_id": state.task_id, "error_type": type(exc).__name__})
         return outcome
 
     async def _ensure_ready(
@@ -488,6 +498,12 @@ class TaskRunner:
                 step_index=step_index,
                 remaining_seconds=self._remaining_or_zero(deadline),
             )
+            if self._memory is not None and self._config.learning.mode == "B1" and state.goal and state.world_id:
+                context["experience"] = episode_context(
+                    self._memory, world_id=state.world_id,
+                    ruleset_id=self._config.learning.ruleset_id,
+                    goal=state.goal.to_dict(), limit=self._config.learning.max_retrieved,
+                )
             await self._notify(f"第 {step_index}/{max_steps} 步：思考中…")
             try:
                 reply = await self._planner_decision(context, deadline, cancel_event)

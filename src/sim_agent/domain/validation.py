@@ -14,7 +14,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from .errors import ValidationError
+from sim_agent.domain.errors import ValidationError
 
 CANONICAL_ITEM_RE = re.compile(r"^minecraft:[a-z0-9_]{1,64}$")
 PLAYER_RE = re.compile(r"^[A-Za-z0-9_]{1,16}$")

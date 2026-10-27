@@ -1,5 +1,5 @@
 {
-  "name": "minecraft-basic-agent-executor",
+  "name": "@super-intelligent-minecraft/executor",
   "version": "0.1.0",
   "private": true,
   "description": "JSONL Mineflayer executor for the vanilla Minecraft 1.21.1 basic agent",

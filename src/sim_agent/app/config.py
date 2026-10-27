@@ -1,18 +1,18 @@
 """Strict-ish loading of the configuration contract in docs/PROTOCOL.md.
 
 Secret *paths* only: this module never reads the model key file.  The key is
-read lazily and only by :mod:`basic_agent.model`.
+read lazily and only by :mod:`sim_agent.planning.model`.
 """
 
 from __future__ import annotations
 
 import json
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .errors import ConfigError
+from sim_agent.domain.errors import ConfigError
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,6 +43,13 @@ class ModelConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class LearningConfig:
+    mode: str = "B0"
+    ruleset_id: str = "vanilla-1.21.1-v1"
+    max_retrieved: int = 3
+
+
+@dataclass(frozen=True, slots=True)
 class AppConfig:
     minecraft: MinecraftConfig
     agent: AgentConfig
@@ -50,6 +57,7 @@ class AppConfig:
     runtime_dir: Path
     config_path: Path
     raw: dict[str, Any]
+    learning: LearningConfig = field(default_factory=LearningConfig)
 
 
 def _section(root: dict[str, Any], name: str) -> dict[str, Any]:
@@ -129,6 +137,22 @@ def load_config(path: str | Path) -> AppConfig:
     model_name = _text(model_raw, "name", "model", max_len=128)
     key_file_raw = _text(model_raw, "key_file", "model", max_len=4096)
     model_timeout = _number(model_raw, "timeout_seconds", "model", 1.0, 300.0)
+    key_file = Path(key_file_raw).expanduser()
+    if not key_file.is_absolute():
+        key_file = config_path.parent / key_file
+
+    learning_raw = root.get("learning", {})
+    if not isinstance(learning_raw, dict):
+        raise ConfigError("配置 learning 必须是对象")
+    mode = learning_raw.get("mode", "B0")
+    if mode not in {"B0", "B1"}:
+        raise ConfigError("当前仅支持 B0/B1；B2/B3 尚未接入自动技能执行")
+    ruleset_id = learning_raw.get("ruleset_id", "vanilla-1.21.1-v1")
+    if not isinstance(ruleset_id, str) or not ruleset_id.strip() or len(ruleset_id) > 128:
+        raise ConfigError("learning.ruleset_id 必须是 1..128 字符的规则版本标签")
+    max_retrieved = learning_raw.get("max_retrieved", 3)
+    if isinstance(max_retrieved, bool) or not isinstance(max_retrieved, int) or not 1 <= max_retrieved <= 3:
+        raise ConfigError("learning.max_retrieved 必须是 1..3 的整数")
 
     runtime_raw = root.get("runtime_dir")
     if not isinstance(runtime_raw, str) or not runtime_raw.strip():
@@ -158,10 +182,11 @@ def load_config(path: str | Path) -> AppConfig:
         model=ModelConfig(
             base_url=base_url,
             name=model_name,
-            key_file=key_file_raw,
+            key_file=key_file,
             timeout_seconds=model_timeout,
         ),
         runtime_dir=runtime_path,
         config_path=config_path,
         raw=root,
+        learning=LearningConfig(mode, ruleset_id, max_retrieved),
     )

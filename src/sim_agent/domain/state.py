@@ -6,10 +6,10 @@ import math
 from dataclasses import dataclass, field
 from typing import Any
 
-from .errors import TransportError, ValidationError, WorldChangedError
-from .goals import Goal, observation_inventory
-from .jsonl import utc_now
-from .validation import canonical_observed_name, position
+from sim_agent.domain.errors import TransportError, ValidationError, WorldChangedError
+from sim_agent.domain.goals import Goal, observation_inventory
+from sim_agent.observability.jsonl import utc_now
+from sim_agent.domain.validation import canonical_observed_name, position
 
 
 def _number(value: Any, default: float = 0.0) -> float:

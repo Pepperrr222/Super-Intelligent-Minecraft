@@ -15,8 +15,8 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
-from .errors import ValidationError
-from .validation import (
+from sim_agent.domain.errors import ValidationError
+from sim_agent.domain.validation import (
     _exact_keys,
     _int_range,
     canonical_item,

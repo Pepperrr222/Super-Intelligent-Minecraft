@@ -2,9 +2,9 @@
 
 Examples::
 
-    python -m basic_agent --config config.json
-    python -m basic_agent --config config.json --task "收集 4 个橡木原木"
-    python -m basic_agent --config config.json --task "去坐标 0 64 0" \
+    python -m sim_agent --config config.json
+    python -m sim_agent --config config.json --task "收集 4 个橡木原木"
+    python -m sim_agent --config config.json --task "去坐标 0 64 0" \
         --goal-json '{"type":"near_position","position":{"x":0,"y":64,"z":0},"range":2}'
 """
 
@@ -17,20 +17,21 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from . import __version__
-from .config import load_config
-from .errors import AgentError, ConfigError, ValidationError
-from .goals import parse_goal
-from .jsonl import RuntimeLogs
-from .model import DeepSeekClient
-from .planner import LLMPlanner
-from .service import AgentService
-from .transport import ExecutorClient
+from sim_agent import __version__
+from sim_agent.app.config import load_config
+from sim_agent.domain.errors import AgentError, ConfigError, ValidationError
+from sim_agent.domain.goals import parse_goal
+from sim_agent.observability.jsonl import RuntimeLogs
+from sim_agent.planning.model import DeepSeekClient
+from sim_agent.planning.planner import LLMPlanner
+from sim_agent.execution.service import AgentService
+from sim_agent.adapters.mineflayer import ExecutorClient
+from sim_agent.memory.store import ExperienceStore
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="python -m basic_agent",
+        prog="python -m sim_agent",
         description="Minecraft Java 1.21.1 基础 Agent（Python 决策层）",
     )
     parser.add_argument(
@@ -58,7 +59,10 @@ def _parse_goal_arg(raw: str | None) -> dict[str, Any] | None:
         return None
     text = raw.strip()
     if text.startswith("@"):
-        text = text[1:]
+        try:
+            text = Path(text[1:]).expanduser().read_text(encoding="utf-8")
+        except OSError as exc:
+            raise ValidationError("无法读取 --goal-json 文件") from exc
     elif text.startswith("{"):
         pass
     else:
@@ -78,6 +82,7 @@ def _parse_goal_arg(raw: str | None) -> dict[str, Any] | None:
 
 async def _run(args: argparse.Namespace, config: Any, goal_json: dict[str, Any] | None) -> int:
     logs = RuntimeLogs(config.runtime_dir)
+    memory = ExperienceStore(config.runtime_dir / "memory.sqlite3")
     backend = ExecutorClient(config, logs)
     planner = LLMPlanner(DeepSeekClient(config.model))
     service = AgentService(
@@ -87,6 +92,7 @@ async def _run(args: argparse.Namespace, config: Any, goal_json: dict[str, Any] 
         logs,
         emit=lambda text: print(text, flush=True),
         chat_progress=args.task is None,
+        memory=memory,
     )
     started = False
     try:
@@ -128,6 +134,7 @@ async def _run(args: argparse.Namespace, config: Any, goal_json: dict[str, Any] 
         except Exception:
             pass
         logs.close()
+        memory.close()
 
 
 def main(argv: list[str] | None = None) -> int:

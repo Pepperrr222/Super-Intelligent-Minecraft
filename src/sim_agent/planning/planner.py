@@ -11,8 +11,8 @@ import time
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from .model import ModelClient
-from .state import TaskState
+from sim_agent.planning.model import ModelClient
+from sim_agent.domain.state import TaskState
 
 SYSTEM_PROMPT = """You are the decision layer of a basic Minecraft Java 1.21.1 agent.
 You are connected to the game only through a strict, validated tool protocol.

@@ -1,6 +1,29 @@
 {
-  "minecraft": {"host":"127.0.0.1","port":25575,"version":"1.21.1","username":"BasicAgent","auth":"offline","world_id":"basic-lab-v1"},
-  "agent": {"owner":"Doctor_Pepper","prefix":"!agent ","max_steps":12,"task_timeout_seconds":300,"poll_seconds":0.25},
-  "model": {"base_url":"https://api.deepseek.com","name":"deepseek-flash","key_file":"/home/pcn789/minemind-lab/deepseek.key","timeout_seconds":45},
-  "runtime_dir":"runtime"
+  "minecraft": {
+    "host": "127.0.0.1",
+    "port": 25575,
+    "version": "1.21.1",
+    "username": "SuperAgent",
+    "auth": "offline",
+    "world_id": "vanilla-lab-v1"
+  },
+  "agent": {
+    "owner": "YourPlayerName",
+    "prefix": "!agent ",
+    "max_steps": 12,
+    "task_timeout_seconds": 300,
+    "poll_seconds": 0.25
+  },
+  "model": {
+    "base_url": "https://api.deepseek.com",
+    "name": "YOUR_MODEL_ID",
+    "key_file": ".secrets/model.key",
+    "timeout_seconds": 45
+  },
+  "runtime_dir": "runtime",
+  "learning": {
+    "mode": "B0",
+    "ruleset_id": "vanilla-1.21.1-v1",
+    "max_retrieved": 3
+  }
 }

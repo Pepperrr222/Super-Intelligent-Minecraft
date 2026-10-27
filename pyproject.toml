@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "basic-agent"
-version = "0.1.0"
-description = "Minecraft Java 1.21.1 basic decision-layer agent"
+name = "super-intelligent-minecraft"
+version = "0.2.0"
+description = "Evidence-driven Minecraft agent with Python planning and Mineflayer execution"
 requires-python = ">=3.12"
 dependencies = []
 
@@ -13,10 +13,16 @@ dependencies = []
 dev = ["pytest>=8.0"]
 
 [project.scripts]
-basic-agent = "basic_agent.cli:main"
+sim-agent = "sim_agent.app.cli:main"
+sim-demo = "sim_agent.app.demo:main"
+sim-evaluate = "sim_agent.evaluation.metrics:main"
+
+[tool.setuptools.package-data]
+"sim_agent.memory" = ["migrations/*.sql"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+include = ["sim_agent*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

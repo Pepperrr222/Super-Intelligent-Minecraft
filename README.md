@@ -1,74 +1,105 @@
-# Minecraft 基础版 Agent
+# Super Intelligent Minecraft
 
-Python 决策层 + Mineflayer 执行层。目标是先做一个能真实执行和复核的原版 Agent，使用现有 DeepSeek API，不训练模型。
+自然语言处理课程项目：通过中文指令操控 Minecraft，在执行反馈中积累经验，逐步研究整合包规则变化下的技能更新。
 
-这是独立项目；之前 Jarvis / AIM / MineMind 的试用代码与整合包保留在各自目录。设计见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，进程协议见 [docs/PROTOCOL.md](docs/PROTOCOL.md)。
+当前阶段先完成 **Minecraft Java 1.21.1 原版 Agent**。Python 负责规划、状态和结果验证，Node.js + Mineflayer 负责游戏动作。模型参数固定，学习发生在外部经验库。
 
-## 本机运行
+## 项目结构
 
-环境：Node 22、Python 3.12+、Minecraft Java 1.21.1。已准备 `.venv` 和 `executor/node_modules`。
+```text
+src/sim_agent/
+  app/                 CLI、配置和离线演示，组装各层
+  domain/              目标谓词、任务状态、参数校验、错误类型
+  planning/            模型适配器、单步规划、提示词
+  execution/           任务循环、动作轮询、取消、玩家指令入口
+  adapters/            Mineflayer JSONL 客户端、离线 Mock
+  memory/              SQLite 轨迹、经验检索、技能复验与迁移
+  observability/       任务、协议、模型用量日志
+  evaluation/          基于验证记录的完成率与代价统计
+executor/
+  server.js            Node 子进程入口，stdout 仅用于 JSONL
+  lib/actions/         移动、跟随、采集、合成、取放、熔炼
+  lib/                 生命周期、观察、游戏适配和协议校验
+  test/                执行器测试
+benchmarks/            任务目录和分阶段实验清单
+docs/
+  design/              原始 DOCX 和开题 PPT
+scripts/               跨平台开发入口、隔离测试服和真实动作验收
+tests/                 Python 离线与跨层测试
+.github/workflows/     Windows / Linux CI
+```
 
-先启动隔离服务器：
+## 快速开始
+
+要求 Python 3.12+、Node.js 22+。运行独立游戏测试服还需要 Java 21。
+
+在仓库根目录执行，Windows 可将 `python` 换成 `py -3.12`：
 
 ```bash
-cd /home/pcn789/minecraft-basic-agent
-./scripts/server.sh
+python -m venv .venv
+# Windows 激活：.venv\Scripts\Activate.ps1
+# Linux/macOS 激活：source .venv/bin/activate
+python -m pip install -e .
+npm ci --prefix executor
+python scripts/dev.py check
 ```
 
-另开终端启动 Agent：
+先跑无需 Minecraft 和 API 密钥的离线流程：
 
 ```bash
-cd /home/pcn789/minecraft-basic-agent
-./run.sh
+python scripts/dev.py demo
+python scripts/dev.py test
+sim-evaluate runtime/demo/tasks.jsonl
 ```
 
-在 Prism 中启动 **AI Basic · 原版 Agent 试用**，多人游戏连接 `127.0.0.1:25575`。若新实例没出现在列表，Prism 主窗口按 F5。此实例仅原版，没有 NeoForge / Forge / 内容模组。
+离线演示使用明确标记的 Mock 和固定脚本，演示取料、合成、交付、验证及存储的连通性。它不测试模型理解或真实游戏能力。
 
-当前授权玩家为 `Doctor_Pepper`，机器人为 `BasicAgent`。聊天示例：
+## 连接原版服务器
 
-```
-!agent 采集附近的橡木，让背包比现在新增4个橡木木板
+1. 复制 `config.example.json` 为 `config.json`，修改服务器、玩家名、模型 ID 和 API 地址。
+2. 将密钥写入 `.secrets/model.key`，配置只保存路径。相对路径以配置文件所在目录为基准。
+3. 连接已启动的本地原版服务器，或按 [运行说明](docs/DEVELOPMENT.md) 创建隔离测试服。
+4. 执行 `python scripts/dev.py run` 或 `sim-agent --config config.json`。
+
+当前执行器面向本机离线认证实验服。聊天仅接受 `agent.owner` 的指令：
+
+```text
 !agent 去坐标 1 -60 2 附近
-!agent 把背包中的2个橡木木板放进坐标4 -60 0的箱子
-!agent 检查坐标4 -60 0的箱子，从里面取1个粗铁和1个煤，用坐标6 -60 0的熔炉炼成铁锭并取出
+!agent 采集附近橡木，让背包新增4个橡木木板
+!agent 把背包中的2个橡木木板放入坐标4 -60 0的箱子
 !agent 停止
 ```
 
-具体任务能否完成取决于当前材料、地形和槽位状态。接受新任务会锁定一个可检查目标；执行中再次发任务会明确提示忙碌。停止指令直接执行，不需要等待模型。
-
-也可在终端执行一次任务，结束后机器人退出：
+终端单次任务：
 
 ```bash
-./run.sh --task '采集橡木并合成木板，让背包新增4个橡木木板'
+sim-agent --config config.json --task "去坐标 1 -60 2 附近"
 ```
 
-## 配置与数据
+停止绕过模型，直接取消执行。新任务在忙碌时被拒绝；中途纠正并恢复尚未完成，当前可先停止再重新下达。只有程序复核目标成立，任务才记为完成。
 
-实际配置为 `config.json`，公开模板为 `config.example.json`。密钥仍保存在本机现有文件中，配置只记录密钥文件路径。模型仅在执行任务时调用，空闲时不轮询模型。
+## 自我学习的实施阶段
 
-- `minecraft`：服务器、版本、机器人名、世界标签。
-- `agent`：指令拥有者、前缀、步数和时间上限。
-- `model`：兼容 API 地址、模型名和密钥文件路径。
-- `runtime`：任务、协议和模型用量日志，及完全独立的服务端测试世界。
+| 版本 | 定义 | 当前状态 |
+| --- | --- | --- |
+| B0 | 实时观察、规划、反馈修正，无跨任务检索 | 可运行基线 |
+| B1 | 检索同世界、同规则版本、同目标类型的历史执行证据 | 已接入，效果待真实实验 |
+| B2 | 参数化技能复用 | 存储与复验接口已实现，提取与自动执行待接入 |
+| B3 | 依赖指纹与局部失效更新 | 存储层接口已实现，规则发现、变化监测和执行接入待完成 |
 
-更换存档时修改 `minecraft.world_id`，防止旧任务状态被用于新世界。当前标签不等于游戏存档 UUID。离线认证服务器只监听本机，适合这台电脑上的实验；接远程或公开服务器时应另配正常认证和访问控制。
+默认 `learning.mode` 为 `B0`，可设置 `B1`。两者都保存轨迹，B0 不读取历史经验。B2/B3 不能作为运行配置启用。`ruleset_id` 当前是人工维护的版本标签，改变配方或存档时必须同步更新。
 
-## 验收与复现
+候选技能要关联两次不同重置场景、不同任务 ID 的成功复验，且结果经程序验证，才允许晋升。调用前仍要检查当前条件。自动技能执行尚未接入。
 
-验收结果和已知限制见 [docs/VALIDATION.md](docs/VALIDATION.md)。真实游戏测试、离线测试、模型自主任务会分开记录。
+## 文档与验证边界
 
-```bash
-PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -v
-cd executor
-npm test
-```
+- [系统架构](docs/ARCHITECTURE.md)：职责、数据流和原设计对应关系。
+- [动作协议](docs/PROTOCOL.md)：JSONL 契约与数量语义。
+- [运行与开发](docs/DEVELOPMENT.md)：安装、测试和隔离世界。
+- [能力与验收](docs/VALIDATION.md)：实现、离线测试与真实验收的区别。
+- [后续路线](docs/ROADMAP.md)：原版、NLP、学习和整合包适配。
+- [实验约定](benchmarks/README.md)：B0/B1 先导实验与后续消融。
 
-`scripts/smoke_executor.py` 是真实服务器动作验收，需要先在隔离服务器控制台建立 `scripts/fixture_commands.txt` 的夹具。夹具只提供场地、原料、箱子和熔炉；不生成测试目标产物。不能对玩家正式世界执行该夹具。Agent 本身没有控制台、传送或生成物品接口。
+本次开发没有运行真实游戏验收，也没有经验学习提升数据。当前 Mineflayer 后端仅覆盖原版动作集合；未来模组注册表、配方和机器操作通过后端能力接口扩展，整合包兼容需要单独验证。
 
-初次安装时使用 `python3 -m venv .venv`、`cd executor && npm ci`。初次下载服务器使用 `python scripts/setup_lab.py`，脚本校验 Mojang 下载清单中的 SHA-1，并为本地实验服接受 Minecraft EULA。现有服务端配置不会被重复覆盖。
-
-## 当前边界
-
-支持移动、有限时长跟随、方块搜索与采集、配方合成、标准箱子/木桶存取和标准熔炉流程。寻路不自动挖路或铺路。不支持内容模组、任意 GUI、任意代码生成、完整从零生存或自动战斗。第一阶段保存任务证据；长期技能检索与经验学习尚未实现。
-
-依赖来源：[Mineflayer](https://github.com/PrismarineJS/mineflayer)、[Pathfinder](https://github.com/PrismarineJS/mineflayer-pathfinder)。高低层分工参考 [Hi Robot](https://www.pi.website/research/hirobot) 的层次化思路，未复现其模型与训练。
+依赖参考：[Mineflayer API](https://github.com/PrismarineJS/mineflayer/blob/master/docs/api.md)、[Pathfinder](https://github.com/PrismarineJS/mineflayer-pathfinder)。原始设计保存在 [docs/design](docs/design)。
