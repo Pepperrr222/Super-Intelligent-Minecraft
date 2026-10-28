@@ -1,4 +1,4 @@
-"""Owner chat handling, busy rejection and lifecycle around one task at a time."""
+"""Configured player chat handling and lifecycle around one task at a time."""
 
 from __future__ import annotations
 
@@ -104,7 +104,9 @@ class AgentService:
     async def handle_chat(self, username: str, message: str) -> str:
         if not isinstance(username, str) or not isinstance(message, str):
             return "ignored"
-        if username != self._config.agent.owner:
+        if username == self.sender:
+            return "ignored"
+        if self._config.agent.owner != "*" and username != self._config.agent.owner:
             self._logs.task(
                 {
                     "type": "chat_rejected",

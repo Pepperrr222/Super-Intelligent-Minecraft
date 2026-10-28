@@ -20,6 +20,8 @@ Windows 激活命令为 `.venv\Scripts\Activate.ps1`，Linux 为 `source .venv/b
 
 复制根目录 config.example.json 为 config.json。修改 agent.owner 为游戏内用户名，model.name 为实际账户可用的模型 ID。API 需要支持 `/chat/completions` 与 JSON object 输出。模型、价格和调用结果必须以自己的实际账号验证，模板不预填未经验证的型号。
 
+小组共同测试时可设置 `"owner": "*"`，接受所有玩家的 `!agent ` 指令，不需要列出三人的用户名。机器人自己的消息会被忽略。任务共享且不排队，任意获准玩家可用 `!agent 停止`、`!agent 纠正 ...` 和 `!agent 回答 ...` 控制当前任务。修改后重启 Agent 生效，无需重启游戏服务器。
+
 创建 `.secrets/model.key`，只写密钥。key_file 和 runtime_dir 的相对路径以配置文件目录为基准。不要把真实密钥写进 JSON、命令行、日志或 Git。
 
 learning.mode 为 B0 或 B1，默认 B0。正式对照实验要冻结数据库副本，不能把后运行的组偷偷混入更多经验。当前运行器每轮结束会写入 SQLite，因此冻结测试需要给每次试验提供独立的基准数据库副本；批量恢复工具待实现。

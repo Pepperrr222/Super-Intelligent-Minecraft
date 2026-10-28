@@ -42,7 +42,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--task",
-        help="终端单次任务文本；不传时监听配置 owner 的游戏聊天",
+        help="终端单次任务文本；不传时监听游戏聊天（owner=* 接受所有玩家）",
     )
     parser.add_argument(
         "--goal-json",
@@ -121,7 +121,7 @@ async def _run(args: argparse.Namespace, config: Any, goal_json: dict[str, Any] 
             return 0 if outcome.completed else 1
 
         print(
-            f"监听聊天：玩家 {config.agent.owner}，前缀 {config.agent.prefix!r}。"
+            f"监听聊天：{'所有玩家' if config.agent.owner == '*' else '玩家 ' + config.agent.owner}，前缀 {config.agent.prefix!r}。"
             "发送“停止”可取消当前任务。",
             flush=True,
         )

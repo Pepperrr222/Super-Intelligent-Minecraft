@@ -69,6 +69,8 @@ Optional model `constraints` accepts no_move/no_collect booleans, keep_inventory
 
 Owner chat `!agent 纠正 ...` cancels the previous task before starting a new version with verified progress. `!agent 回答 ...` resumes a clarification with original request and answer context. Normal new work is rejected while busy. Chat progress is coalesced; important messages use a minimum interval to avoid vanilla spam kicks.
 
+`agent.owner="*"` authorizes all players for tasks, stop, correction and clarification answers. A specific username retains single-player authorization. The bot always ignores its own chat; the configured prefix and single shared task lifecycle still apply. There is no per-player queue.
+
 End states: completed, failed, cancelled, needs_clarification, exhausted. Same failure twice, step budget or deadline stops the loop. Late model responses after cancellation must not start actions.
 
 ## Persistence and configuration
