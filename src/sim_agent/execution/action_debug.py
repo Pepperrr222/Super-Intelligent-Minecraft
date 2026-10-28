@@ -51,7 +51,9 @@ class ActionDebugRunner(ExecutionController):
                 state.add_step(StepRecord(index=1,op='act',args=command.call.args,status=result.status,
                     started_at=started,finished_at=utc_now(),result=result.result,error=result.error,
                     action_id=result.action_id,evidence=result.evidence))
-                if result.status!='succeeded': raise ValidationError(result.error or '动作执行失败')
+                if result.status!='succeeded':
+                    phase=(result.result or {}).get('effect',{}).get('phase','unknown')
+                    raise ValidationError(f"动作失败阶段[{phase}]："+(result.error or '动作执行失败'))
                 if command.call.args['kind']=='collect':
                     mined=(result.result or {}).get('effect',{}).get('mined_count')
                     if isinstance(mined,bool) or not isinstance(mined,int) or mined<command.call.args['count']:
@@ -68,7 +70,7 @@ class ActionDebugRunner(ExecutionController):
         except DeadlineExceeded as exc:
             status='exhausted';message='动作时间预算耗尽。';error=str(exc)
         except TransportError as exc:
-            status='interrupted';message='执行器连接异常，效果需要核对。';error=str(exc)
+            status='interrupted';message='执行器状态无法确认，效果需要核对：'+str(exc);error=str(exc)
         except ValidationError as exc:
             status='failed' if attempted else 'needs_clarification';message=str(exc);error=str(exc)
         except AgentError as exc:
@@ -81,7 +83,7 @@ class ActionDebugRunner(ExecutionController):
             if attempted and status!='completed':
                 await self._stop_once()
                 await self._capture_interrupted_action(state)
-                unknown=not state.steps or state.steps[-1].status not in {'succeeded','failed','cancelled'}
+                unknown=self._effect_unknown or not state.steps or state.steps[-1].status not in {'succeeded','failed','cancelled'}
                 if unknown:
                     self._unsafe=True;status='interrupted';message+=' 旧动作结果未确认，禁止自动重放。'
             if attempted:

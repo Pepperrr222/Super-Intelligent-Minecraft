@@ -1,5 +1,6 @@
 """Two-role orchestration tests. Scripted models are not cloud acceptance."""
 import asyncio
+import time
 import copy
 import json
 import tempfile
@@ -516,6 +517,21 @@ class HierarchicalTests(unittest.IsolatedAsyncioTestCase):
         outcome=await self.create(team).run('描述你所处的环境')
         self.assertEqual(outcome.end_state,'completed')
         self.assertEqual([role for role,_ in team.calls],['coordinator'])
+
+    async def test_unknown_effect_stays_unknown_in_action_journal(self):
+        team=ScriptedTeam([lambda c:report(c,contract())])
+        runtime=self.create(team)
+        await runtime.run('描述你所处的环境')
+        jid=runtime.store.journal(runtime.snap['root_task_id'],runtime.session_id,
+            {'status':'acknowledged','action_id':'a-unknown','op':'act','args':{'kind':'collect'}})
+        original=self.backend.request
+        async def request(op,args,timeout=None):
+            if op=='action_status': return {'action_id':'a-unknown','status':'failed','effect':{'effect_unknown':True}}
+            return await original(op,args,timeout)
+        self.backend.request=request
+        runtime._cleanup=True
+        await runtime._request('action_status',{'action_id':'a-unknown'},time.monotonic()+5,asyncio.Event())
+        self.assertEqual(runtime.store.actions(runtime.snap['root_task_id'])[-1]['status'],'unknown')
 
     async def test_old_semantic_check_does_not_auto_pass(self):
         d=contract(); d['deliverables'][0]['acceptance_checks'].append(

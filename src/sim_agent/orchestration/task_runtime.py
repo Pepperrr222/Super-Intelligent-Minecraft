@@ -183,8 +183,9 @@ class TaskRuntime(ExecutionController):
         elif op == "action_status" and response.get("status") in {"succeeded","failed","cancelled"}:
             for a in self.store.actions(self.snap["root_task_id"]):
                 if a.get("session_id") == self.session_id and a.get("action_id") == args["action_id"]:
+                    uncertain=(response.get("effect") or {}).get("effect_unknown") is True
                     self.store.journal(self.snap["root_task_id"],self.session_id,
-                        {**a,"status":"settled","result":response},a["id"])
+                        {**a,"status":"unknown" if uncertain else "settled","result":response},a["id"])
         return response
 
     def _context(self, role, purpose):
@@ -765,7 +766,7 @@ class TaskRuntime(ExecutionController):
                     if a.get("session_id")==self.session_id and a.get("action_id") and a.get("status")=="acknowledged":
                         try:
                             result=await asyncio.wait_for(self._backend.request("action_status",{"action_id":a["action_id"]},timeout=2),2.1)
-                            if result.get("status") in {"succeeded","failed","cancelled"}:
+                            if result.get("status") in {"succeeded","failed","cancelled"} and not (result.get("effect") or {}).get("effect_unknown"):
                                 self.store.journal(self.snap["root_task_id"],self.session_id,{**a,"status":"settled","result":result},a["id"])
                         except Exception: pass
                 unsettled=[a for a in self.store.actions(self.snap["root_task_id"]) if a.get("status") in {"unknown","submitting","acknowledged"}]

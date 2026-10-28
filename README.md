@@ -8,7 +8,7 @@
 
 当前设计：**Coordinator → Worker → 执行控制与验证 → Mineflayer**。Coordinator 理解需求、调查条件、分解和派发业务阶段；Worker 选择底层工具并编译验收标准。独立 LLM Reviewer 已移除。
 
-新架构仍需显式启用，缺省配置继续使用 legacy。上一轮本地121项 Python、29项 Node测试及离线演示通过，但最新真实任务暴露了验收准备循环等问题，尚未解决，不代表完整生存能力验收通过。
+新架构仍需显式启用，缺省配置继续使用 legacy。最新本地149项 Python、48项 Node测试及离线演示通过，采集可靠性已有本地修订，但复杂任务与新拾取策略仍需真实游戏复验，不代表完整生存能力验收通过。
 
 - [当前进度](docs/implementation/PROGRESS.md)
 - [已知问题](docs/implementation/KNOWN_ISSUES.md)

@@ -119,6 +119,7 @@ class ExecutionController:
         self._task_id = ""
         self._pending_action = None
         self._stop_action_id = None
+        self._effect_unknown = False
 
     async def cancel(self, reason: str = "玩家取消任务") -> bool:
         if not self._active or self._cancel_event is None:
@@ -256,6 +257,8 @@ class ExecutionController:
         deadline: float,
         cancel_event: asyncio.Event,
     ) -> _Execution:
+        if call.op == "act" and self._effect_unknown:
+            raise TransportError("上次动作效果未确认，需要人工核对并重新连接，禁止自动重放")
         recipes = None
         if state.constraints and call.op == "act":
             fresh = await self._observe(deadline, cancel_event)
@@ -359,6 +362,9 @@ class ExecutionController:
         if fresh_observation is not None:
             state.apply_observation(fresh_observation)
         status = status_response.get("status")
+        if (status_response.get("effect") or {}).get("effect_unknown") is True:
+            self._effect_unknown = True
+            raise TransportError("执行器报告挖掘效果未确认，停止自动重试并保留现场")
         self._pending_action = None
         after_observation = state.observation.raw if state.observation else None
         evidence = {

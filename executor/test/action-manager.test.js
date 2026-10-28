@@ -136,6 +136,31 @@ test('stop with no action is a harmless no-op', () => {
   assert.deepEqual(manager.stop(), { stopped: true })
 })
 
+test('stop during an already-entered hung external call retains body lock until settlement', async () => {
+  const manager = makeManager()
+  let entered, release
+  const started = new Promise(resolve => { entered = resolve })
+  const external = new Promise(resolve => { release = resolve })
+  let later = false
+  const { action_id: id } = manager.start('collect', async ctx => {
+    ctx.setEffect({ phase: 'equip', mined_count: 1 })
+    entered()
+    await ctx.wait(external)
+    later = true
+  })
+  await started
+  manager.stop()
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(manager.isBusy(), true)
+  assert.equal(manager.status(id).status, 'running')
+  assert.throws(() => manager.start('goto', async () => {}), e => e.code === 'BUSY')
+  release()
+  await manager.waitForIdle()
+  assert.equal(later, false)
+  assert.equal(manager.status(id).status, 'cancelled')
+  assert.equal(manager.status(id).effect.mined_count, 1)
+})
+
 test('same action id can be polled while running and after settling', async () => {
   const manager = makeManager()
   let release

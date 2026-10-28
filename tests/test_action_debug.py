@@ -78,6 +78,22 @@ class DebugTests(unittest.IsolatedAsyncioTestCase):
             result=await ActionDebugRunner(backend,self.config).run('collect oak_log 4')
             self.assertEqual(result.end_state,'failed')
 
+    async def test_executor_unknown_effect_latches_across_actions(self):
+        class Unconfirmed(FakeBackend):
+            async def request(self,op,args,timeout=None):
+                result=await super().request(op,args,timeout)
+                if op=='action_status':
+                    result.update(status='failed',effect={'effect_unknown':True,'phase':'dig','mined_count':0})
+                return result
+        backend=Unconfirmed([observation()])
+        runner=ActionDebugRunner(backend,self.config)
+        result=await runner.run('collect oak_log 4')
+        self.assertEqual(result.end_state,'interrupted')
+        self.assertTrue(result.recovery_required)
+        again=await runner.run('goto 1 64 2')
+        self.assertEqual(again.end_state,'interrupted')
+        self.assertEqual(backend.act_calls,1)
+
     async def test_goto_checks_fresh_position(self):
         for x,status in [(10,'completed'),(0,'failed')]:
             backend=FakeBackend([observation(),observation(x=x,z=5)])

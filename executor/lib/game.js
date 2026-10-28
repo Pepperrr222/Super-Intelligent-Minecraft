@@ -75,23 +75,25 @@ function configureMovements (bot, MovementsClass) {
   return movements
 }
 
-function makePointGoal (position, range, GoalClass = getPathfinder().goals.Goal) {
+function makePointGoal (position, range, GoalClass = getPathfinder().goals.Goal, isObsolete = () => false) {
   // Pathfinder nodes use block corners, but players stand near block centers.
   // GoalNear checks integer nodes and can stop over a block outside the actual
   // requested sphere. Use the same world-space metric as the verifier.
   return new (class extends GoalClass {
     heuristic (node) {
+      if (isObsolete()) return 0
       return Math.max(0, distanceToPoint({ x: node.x + 0.5, y: node.y, z: node.z + 0.5 }, position) - range)
     }
 
     isEnd (node) {
+      if (isObsolete()) return true // Pickup targets may fall/disappear; return control for re-observation.
       return distanceToPoint({ x: node.x + 0.5, y: node.y, z: node.z + 0.5 }, position) <= range
     }
   })()
 }
 
-async function gotoPosition (ctx, position, range = 1) {
-  const goal = makePointGoal(position, range)
+async function gotoPosition (ctx, position, range = 1, options = {}) {
+  const goal = makePointGoal(position, range, getPathfinder().goals.Goal, options.isObsolete)
   try {
     await ctx.wait(ctx.bot.pathfinder.goto(goal))
   } catch (err) {
@@ -154,6 +156,9 @@ async function equipForBlock (ctx, block) {
     if (held && held.type === tool.type) return tool
     await ctx.wait(ctx.bot.equip(tool, 'hand'))
     ctx.check()
+    if (!ctx.bot.heldItem || ctx.bot.heldItem.type !== tool.type) {
+      throw new ActionError('EQUIP_UNCONFIRMED', `Equipment did not confirm ${tool.name}`)
+    }
     return tool
   }
   if (ctx.bot.heldItem) {
@@ -173,10 +178,11 @@ async function waitForBlockGone (ctx, block, timeoutMs = 3000) {
   while (Date.now() - started < timeoutMs) {
     ctx.check()
     const current = ctx.bot.blockAt(block.position)
-    if (!current || current.type !== block.type) return current
+    if (!current) return { status: 'unknown', observed_at: Date.now() }
+    if (current.type !== block.type) return { status: 'confirmed_changed', block: current, observed_at: Date.now() }
     await ctx.sleep(100)
   }
-  return null
+  return { status: 'timed_out', observed_at: Date.now() }
 }
 
 async function digBlock (ctx, block) {
@@ -191,8 +197,10 @@ async function digBlock (ctx, block) {
   if (distanceToBlock(ctx.bot, current) > 4.5) {
     throw new ActionError('OUT_OF_REACH', 'Target block is out of reach')
   }
+  ctx.setEffect({ phase: 'equip' })
   await equipForBlock(ctx, current)
   ctx.check()
+  ctx.setEffect({ phase: 'dig', held_tool: ctx.bot.heldItem ? canonicalName(ctx.bot.heldItem.name) : null })
   try {
     await ctx.wait(ctx.bot.dig(current, true))
   } catch (err) {
@@ -200,7 +208,9 @@ async function digBlock (ctx, block) {
     throw new ActionError('DIG_FAILED', `Failed to mine ${current.name}: ${err.message}`)
   }
   const gone = await waitForBlockGone(ctx, current)
-  if (!gone) {
+  ctx.setEffect({ dig_confirmation: gone.status })
+  if (gone.status !== 'confirmed_changed') {
+    ctx.setEffect({ effect_unknown: true })
     throw new ActionError('DIG_UNCONFIRMED', `Mining ${current.name} was not confirmed by a block update`)
   }
   return current
@@ -235,6 +245,7 @@ module.exports = {
   stopPathfinding,
   candidateTool,
   equipForBlock,
+  waitForBlockGone,
   digBlock,
   findBlocks,
   getPathfinder,

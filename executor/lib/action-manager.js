@@ -238,7 +238,8 @@ class ActionManager {
     if (record.finished_at) out.finished_at = record.finished_at
     if (record.before !== null) out.before = record.before
     if (record.after !== null) out.after = record.after
-    if (record.effect && Object.keys(record.effect).length > 0) out.effect = record.effect
+    const effect = this.current && this.current.record === record ? this.current.ctx.effect : record.effect
+    if (effect && Object.keys(effect).length > 0) out.effect = clonePlain(effect)
     if (record.error) out.error = record.error
     return out
   }

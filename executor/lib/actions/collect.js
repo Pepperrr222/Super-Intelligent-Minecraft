@@ -1,266 +1,133 @@
 'use strict'
 
 const { ActionError } = require('../errors')
-const {
-  resolveBlock,
-  findBlocks,
-  ensureNearBlock,
-  digBlock,
-  gotoPosition,
-  distanceToBlock,
-  distanceToPoint,
-  getVec3
-} = require('../game')
-const { inventoryCounts, diffCounts } = require('../inventory')
+const { resolveBlock, findBlocks, ensureNearBlock, digBlock, distanceToPoint } = require('../game')
+const { canonicalName, inventoryCounts, diffCounts } = require('../inventory')
+const { pendingDropsNear, groundTarget, gainFor, createPickupSession, pickupDrops } = require('./collect-pickup')
 
 const SEARCH_RADIUS = 32
-const TERMINAL_ERRORS = new Set(['MISSING_TOOL', 'CANNOT_DIG', 'NOT_CONNECTED'])
-const DROP_PICKUP_MAX_MS = 30000
-const DROP_STABLE_MS = 2000
-const DROP_NEAR_RADIUS = 8
-const PICKUP_RANGE = 0.75
+const TERMINAL_ERRORS = new Set(['MISSING_TOOL', 'NOT_CONNECTED', 'EQUIP_UNCONFIRMED', 'DIG_UNCONFIRMED'])
 
-function isDroppedItem (entity) {
-  const name = entity && typeof entity.name === 'string' ? entity.name.toLowerCase() : ''
-  return name === 'item' || name === 'item_stack'
+function dropProfile (bot, blockInfo, blockName, count) {
+  const expected = new Set()
+  const identity = /_(log|wood|stem|hyphae)$/.test(blockName)
+  if (identity) expected.add(blockName)
+  else {
+    for (const drop of blockInfo.drops || []) {
+      const item = Number.isInteger(drop) && bot.registry.items && bot.registry.items[drop]
+      if (item) expected.add(canonicalName(item.name))
+    }
+    const name = blockName.replace('minecraft:', '')
+    if (bot.registry.itemsByName && bot.registry.itemsByName[name]) expected.add(blockName)
+  }
+  if (!expected.size) throw new ActionError('DROP_MAPPING_UNSUPPORTED', 'Cannot identify drops for ' + blockName)
+  return { expected, wanted: identity ? count : 1, identity }
 }
 
-function pendingDropsNear (bot, minedPositions) {
-  if (!bot.entities) return []
-  const pending = []
-  for (const entity of Object.values(bot.entities)) {
-    if (!entity || !isDroppedItem(entity) || !entity.position) continue
-    let nearest = Infinity
-    for (const position of minedPositions) {
-      const dx = entity.position.x - (position.x + 0.5)
-      const dy = entity.position.y - (position.y + 0.5)
-      const dz = entity.position.z - (position.z + 0.5)
-      const distance = Math.sqrt(dx * dx + dy * dy + dz * dz)
-      if (distance < nearest) nearest = distance
-    }
-    if (nearest <= DROP_NEAR_RADIUS) {
-      pending.push({ entity, distance: nearest })
-    }
-  }
-  pending.sort((a, b) => a.distance - b.distance)
-  return pending.map((entry) => entry.entity)
+function requireSpace (bot, expected) {
+  if (!bot.inventory.emptySlotCount || bot.inventory.emptySlotCount() > 0) return
+  const canStack = bot.inventory.items().some(item => expected.has(canonicalName(item.name)) &&
+    item.count < (item.stackSize || 64))
+  if (!canStack) throw new ActionError('INVENTORY_FULL', 'No inventory space for the target drops')
 }
 
-function hasPositiveDelta (delta) {
-  return Object.values(delta).some((value) => value > 0)
+function candidateKey (block) {
+  return [block.position.x, block.position.y, block.position.z, block.stateId ?? block.type].join(',')
 }
 
-function groundTarget (bot, mined) {
-  const Vec3 = getVec3(bot)
-  const minY = bot.game && typeof bot.game.minY === 'number' ? bot.game.minY : -64
-  for (let y = mined.y; y >= minY; y--) {
-    const block = bot.blockAt(new Vec3(mined.x, y, mined.z))
-    if (block && block.boundingBox === 'block') {
-      return { x: mined.x + 0.5, y: y + 1, z: mined.z + 0.5 }
-    }
-  }
-  return { x: mined.x + 0.5, y: mined.y + 1, z: mined.z + 0.5 }
-}
-
-async function approachDrop (ctx, entity, minedPositions) {
-  ctx.check()
-  const position = entity.position
-  try {
-    await gotoPosition(ctx, { x: position.x, y: position.y, z: position.z }, PICKUP_RANGE)
-    return true
-  } catch (err) {
-    if (ctx.token.cancelled) throw err
-    // An item may be falling or sitting above a block; retry at the nearest
-    // mined block's ground column, which is normally walkable.
-    let nearest = null
-    let nearestDistance = Infinity
-    for (const mined of minedPositions) {
-      const distance = distanceToPoint(position, { x: mined.x + 0.5, y: mined.y + 0.5, z: mined.z + 0.5 })
-      if (distance < nearestDistance) {
-        nearestDistance = distance
-        nearest = mined
-      }
-    }
-    if (!nearest) throw err
-    await gotoPosition(ctx, nearest, PICKUP_RANGE)
-    return false
-  }
-}
-
-/**
- * Mining is only half of "collect": walk to the dropped item entities (or their
- * mined ground position), wait for the actual pickup, and report the real
- * inventory delta.  Timeouts and stop are checked after every await.
- */
-async function pickupDrops (ctx, before, minedPositions) {
-  const started = Date.now()
-  let stableSince = Date.now()
-  let last = inventoryCounts(ctx.bot)
-  let pending = []
-  let approachErrors = 0
-  let sweepErrors = 0
-  let swept = 0
-
-  // Give the server a moment to send the item entities after the final break.
-  await ctx.sleep(500)
-
-  while (Date.now() - started < DROP_PICKUP_MAX_MS) {
-    ctx.check()
-    const current = inventoryCounts(ctx.bot)
-    if (Object.keys(diffCounts(last, current)).length > 0) stableSince = Date.now()
-    last = current
-
-    pending = pendingDropsNear(ctx.bot, minedPositions)
-    ctx.setEffect({
-      inventory_delta: diffCounts(before, current),
-      pending_drops: pending.length,
-      drop_pickup_ms: Date.now() - started
-    })
-    if (pending.length === 0) {
-      if (!hasPositiveDelta(diffCounts(before, current)) && swept < minedPositions.length) {
-        // Item entities can be missed or merge with an existing stack.  Sweep
-        // the ground under each mined block and let the normal pickup range
-        // do the rest.
-        const mined = minedPositions[swept++]
-        try {
-          await gotoPosition(ctx, groundTarget(ctx.bot, mined), PICKUP_RANGE)
-          sweepErrors = 0
-        } catch (err) {
-          if (ctx.token.cancelled) throw err
-          sweepErrors++
-          if (sweepErrors >= minedPositions.length + 2) {
-            throw new ActionError('DROP_UNREACHABLE',
-              'Could not reach the mined positions to pick up dropped items')
-          }
-        }
-        await ctx.sleep(400)
-        continue
-      }
-      if (Date.now() - stableSince >= DROP_STABLE_MS) break
-      await ctx.sleep(200)
-      continue
-    }
-
-    const target = pending[0]
-    try {
-      await approachDrop(ctx, target, minedPositions)
-      approachErrors = 0
-    } catch (err) {
-      if (ctx.token.cancelled) throw err
-      approachErrors++
-      if (approachErrors >= 5) {
-        throw new ActionError('DROP_UNREACHABLE',
-          'Dropped items are nearby but could not be reached for pickup')
-      }
-    }
-    await ctx.sleep(300)
-  }
-
-  ctx.check()
-  const after = inventoryCounts(ctx.bot)
-  pending = pendingDropsNear(ctx.bot, minedPositions)
-  return {
-    inventory_delta: diffCounts(before, after),
-    pending_drops: pending.length,
-    pickup_ms: Date.now() - started
-  }
+function selectCandidate (bot, candidates, origin, blockId, failed) {
+  return candidates.map(candidate => bot.blockAt(candidate.position)).filter(block =>
+    block && block.type === blockId && !failed.has(candidateKey(block)) &&
+    distanceToPoint(origin, block.position) <= SEARCH_RADIUS)
+    .sort((a, b) => {
+      const score = block => distanceToPoint(bot.entity.position, block.position) + Math.max(0, block.position.y - bot.entity.position.y - 1) * 3
+      return score(a) - score(b) || a.position.x - b.position.x || a.position.y - b.position.y || a.position.z - b.position.z
+    })[0] || null
 }
 
 async function run (ctx, args) {
   const bot = ctx.bot
   if (!bot.entity) throw new ActionError('NOT_CONNECTED', 'Bot is not spawned')
   const blockInfo = resolveBlock(bot, args.block)
+  const profile = dropProfile(bot, blockInfo, args.block, args.count)
   const before = inventoryCounts(bot)
-  const minedPositions = []
+  const origin = { ...bot.entity.position }
+  const positions = []
+  const failed = new Set()
+  const failures = []
+  const pickup = createPickupSession()
   let mined = 0
   let attempts = 0
   let lastError = null
-  const maxAttempts = Math.max(12, args.count * 6)
-
-  ctx.setEffect({
-    block: args.block,
-    requested_count: args.count,
-    mined_count: 0,
-    inventory_delta: {}
-  })
-
-  while (mined < args.count) {
-    ctx.check()
-    if (attempts >= maxAttempts) break
-    attempts++
-
-    const candidates = findBlocks(bot, [blockInfo.id], SEARCH_RADIUS, Math.min(64, Math.max(8, args.count * 4)))
-    if (candidates.length === 0) {
-      lastError = new ActionError('BLOCK_NOT_FOUND', `No ${args.block} found within ${SEARCH_RADIUS} blocks`)
-      break
-    }
-
-    let target = null
-    for (const candidate of candidates) {
-      const current = bot.blockAt(candidate.position)
-      if (current && current.type === blockInfo.id && distanceToBlock(bot, current) <= SEARCH_RADIUS + 2) {
-        target = current
+  const maxAttempts = Math.min(128, Math.max(12, args.count * 3))
+  ctx.setEffect({ block: args.block, requested_count: args.count, mined_count: 0,
+    confirmed_mined_count: 0, inventory_delta: {}, phase: 'precheck', action_origin: origin,
+    target_items: [...profile.expected], target_required_gain: profile.wanted })
+  try {
+    requireSpace(bot, profile.expected)
+    while (mined < args.count && attempts < maxAttempts) {
+      ctx.check()
+      requireSpace(bot, profile.expected)
+      ctx.setEffect({ phase: 'search', candidate_attempts: attempts })
+      const candidates = findBlocks(bot, [blockInfo.id], SEARCH_RADIUS, 128)
+      const target = selectCandidate(bot, candidates, origin, blockInfo.id, failed)
+      if (!target) {
+        lastError = new ActionError('BLOCK_NOT_FOUND', 'No untried ' + args.block + ' within the action origin radius')
         break
       }
-    }
-    if (!target) {
-      lastError = new ActionError('BLOCK_NOT_FOUND', `No reachable ${args.block} candidate`)
-      continue
-    }
-
-    try {
-      await ensureNearBlock(ctx, target)
-      const fresh = bot.blockAt(target.position)
-      if (!fresh || fresh.type !== blockInfo.id) {
-        // The block vanished or changed while walking; try the next one.
+      attempts++
+      const key = candidateKey(target)
+      try {
+        ctx.setEffect({ phase: 'navigate', target_position: { ...target.position }, candidate_attempts: attempts })
+        await ensureNearBlock(ctx, target)
+        const fresh = bot.blockAt(target.position)
+        if (!fresh || fresh.type !== blockInfo.id) {
+          failed.add(key)
+          lastError = new ActionError('BLOCK_CHANGED', 'Candidate changed or unloaded before digging')
+          failures.push({ position: { ...target.position }, code: 'BLOCK_CHANGED', at: Date.now() })
+          ctx.setEffect({ failed_candidates: failures.slice(-16) })
+          continue
+        }
+        await digBlock(ctx, fresh)
+        mined++
+        positions.push({ ...fresh.position })
+        ctx.setEffect({ mined_count: mined, confirmed_mined_count: mined })
+      } catch (err) {
+        if (ctx.token.cancelled) throw err
+        lastError = err
+        if (TERMINAL_ERRORS.has(err.code)) throw err
+        failed.add(key)
+        failures.push({ position: { ...target.position }, code: err.code || 'ACTION_FAILED', at: Date.now() })
+        ctx.setEffect({ failed_candidates: failures.slice(-16) })
         continue
       }
-      await digBlock(ctx, fresh)
-      mined++
-      minedPositions.push({ x: fresh.position.x, y: fresh.position.y, z: fresh.position.z })
-      ctx.setEffect({ mined_count: mined })
-      await ctx.sleep(100)
-    } catch (err) {
-      if (ctx.token.cancelled) throw err
-      if (err instanceof ActionError && TERMINAL_ERRORS.has(err.code)) throw err
-      lastError = err
+      // Pickup while still near the trunk. All rounds share a single budget/exclusion set.
+      const wanted = profile.identity ? mined : 1
+      await pickupDrops(ctx, before, positions, profile.expected, wanted, pickup, { maxMs: 2000, requireClear: !profile.identity })
     }
-  }
-
-  const picked = mined > 0
-    ? await pickupDrops(ctx, before, minedPositions)
-    : { inventory_delta: {}, pending_drops: 0, pickup_ms: 0 }
-
-  ctx.setEffect({
-    mined_count: mined,
-    inventory_delta: picked.inventory_delta,
-    drop_pickup_ms: picked.pickup_ms,
-    pending_drops: picked.pending_drops
-  })
-
-  if (mined < args.count) {
-    if (lastError && lastError.code === 'BLOCK_NOT_FOUND' && mined === 0) {
-      throw lastError
+    const picked = positions.length
+      ? await pickupDrops(ctx, before, positions, profile.expected, profile.wanted, pickup, { requireClear: !profile.identity })
+      : { gained_count: 0, pending_drops: 0, pickup_ms: 0 }
+    ctx.setEffect({ phase: 'verify', gained_count: picked.gained_count, pending_drops: picked.pending_drops })
+    if (mined < args.count) {
+      throw new ActionError('COLLECT_INCOMPLETE', 'Confirmed mining ' + mined + '/' + args.count +
+        '; gained ' + picked.gained_count + ' target items' + (lastError ? ': ' + lastError.message : ''))
     }
-    throw new ActionError('COLLECT_INCOMPLETE',
-      `Mined ${mined} of ${args.count} ${args.block} blocks` +
-      (lastError ? `: ${lastError.message}` : ''))
+    if (picked.gained_count < profile.wanted || (!profile.identity && picked.pending_drops > 0)) {
+      ctx.setEffect({ phase: 'pickup' })
+      throw new ActionError('DROPS_NOT_PICKED_UP', 'Confirmed mining ' + mined + '/' + args.count +
+        '; gained ' + picked.gained_count + '/' + profile.wanted + ' target items; pickup route/budget exhausted')
+    }
+    ctx.markVerified({ phase: 'completed' })
+  } finally {
+    ctx.setEffect({ mined_count: mined, confirmed_mined_count: mined,
+      inventory_delta: diffCounts(before, inventoryCounts(bot)),
+      gained_count: gainFor(before, inventoryCounts(bot), profile.expected),
+      failed_candidates: failures.slice(-16), pickup_diagnostics: pickup.diagnostics.slice(),
+      drop_pickup_ms: pickup.elapsed, pending_drops: pendingDropsNear(bot, positions, profile.expected).length })
   }
-  if (picked.pending_drops > 0) {
-    throw new ActionError('DROPS_NOT_PICKED_UP',
-      `Mined ${mined} blocks but ${picked.pending_drops} dropped item entit${picked.pending_drops === 1 ? 'y is' : 'ies are'} still on the ground`)
-  }
-  if (!hasPositiveDelta(picked.inventory_delta)) {
-    throw new ActionError('NO_INVENTORY_GAIN',
-      `Mined ${mined} ${args.block} blocks but the inventory did not gain any item`)
-  }
-
-  ctx.markVerified({
-    mined_count: mined,
-    inventory_delta: picked.inventory_delta,
-    drop_pickup_ms: picked.pickup_ms,
-    pending_drops: picked.pending_drops
-  })
 }
 
-module.exports = { run, pendingDropsNear, hasPositiveDelta, groundTarget }
+// Retained for compatibility with older diagnostic tests; completion uses target-specific gainFor.
+function hasPositiveDelta (delta) { return Object.values(delta).some(value => value > 0) }
+module.exports = { run, pendingDropsNear, groundTarget, hasPositiveDelta, dropProfile, requireSpace, candidateKey, selectCandidate }
