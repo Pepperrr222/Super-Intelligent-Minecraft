@@ -1,5 +1,7 @@
 # 原版 Minecraft 两层 Agent 实现手册
 
+> 当前实现修订：最高层使用自然语言完成标准，不再使用独立 LLM Reviewer。若本文与 [Coordinator 自主规划修订](COORDINATOR_AUTONOMY.md) 冲突，以修订为准。
+
 文档版本：1.0 · 设计日期：2026-10-28
 
 适用仓库：Super-Intelligent-Minecraft。审阅代码基线：`2b07d76216353e685af3a78c82ae6822253ebe23`。

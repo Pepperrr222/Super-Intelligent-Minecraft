@@ -48,6 +48,8 @@ def report(context, draft=None):
 
 
 class ScriptedTeam(AgentTeam):
+    # Existing execution fixtures supply compiled checks directly; live roles use business.v2.
+    protocol_version="internal.v1"
     def __init__(self, coordinator, worker=(), review=None):
         self.queues={"coordinator":list(coordinator),"worker":list(worker)}
         self.calls=[]; self.review=review
@@ -209,8 +211,9 @@ class HierarchicalTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(team.calls[0][1]["stage"])
 
     async def test_mismatched_contract_never_mutates(self):
-        p=proposal("coordinator","propose_contract",contract_draft=contract())
-        team=ScriptedTeam([p]*3,review={"verdict":"mismatch","issues":["需求被替换"]})
+        invalid=contract(); invalid["requirements"][0]["source_refs"]=["不存在的指令"]
+        p=proposal("coordinator","propose_contract",contract_draft=invalid)
+        team=ScriptedTeam([p]*3)
         result=await self.create(team).run("描述你所处的环境")
         self.assertEqual(result.end_state,"failed")
         self.assertEqual(self.backend.act_calls,0)
@@ -297,7 +300,7 @@ class HierarchicalTests(unittest.IsolatedAsyncioTestCase):
             outcome=await self.create(team,logs=logs).run("描述你所处的环境")
             self.assertEqual(outcome.end_state,"completed",outcome.message)
             calls=[json.loads(p.read_text(encoding="utf-8")) for p in logs.calls_dir.glob('call-*.json')]
-            self.assertEqual({c["role"] for c in calls},{"coordinator","reviewer"})
+            self.assertEqual({c["role"] for c in calls},{"coordinator"})
             self.assertTrue(all(c["status"]=="completed" for c in calls))
             self.assertTrue(all("experience" not in ctx for role,ctx in team.calls))
         finally: logs.close()
@@ -504,15 +507,24 @@ class HierarchicalTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(task['contract']['intent_summary'],'描述你所处的环境')
             self.assertEqual(task['delivery_status'],'submitted')
             self.assertEqual(task['root_task_id'],outcome.root_task_id)
-            self.assertEqual({c['role'] for c in view['model_calls']},{'coordinator','reviewer'})
+            self.assertEqual({c['role'] for c in view['model_calls']},{'coordinator'})
             self.assertIsNone(read_model_call(self.config.runtime_dir,'../../config.json'))
         finally: logs.close()
 
-    async def test_semantic_reviewer_issues_cannot_be_ignored(self):
-        team=ScriptedTeam([lambda c:report(c,contract())]*3,review={'verdict':'supported','issues':['仍有无依据陈述']})
+    async def test_removed_reviewer_is_never_called(self):
+        team=ScriptedTeam([lambda c:report(c,contract())],review={'verdict':'mismatch','issues':['不应参与']})
         outcome=await self.create(team).run('描述你所处的环境')
-        self.assertEqual(outcome.end_state,'failed')
+        self.assertEqual(outcome.end_state,'completed')
+        self.assertEqual([role for role,_ in team.calls],['coordinator'])
+
+    async def test_old_semantic_check_does_not_auto_pass(self):
+        d=contract(); d['deliverables'][0]['acceptance_checks'].append(
+            {'kind':'semantic_review','rubric':'旧审查器','requirement_ids':['r1']})
+        team=ScriptedTeam([lambda c:report(c,d)]*3)
+        result=await self.create(team).run('描述你所处的环境')
+        self.assertEqual(result.end_state,'failed')
         self.assertEqual(self.backend.say_calls,[])
+        self.assertNotIn('reviewer',[role for role,_ in team.calls])
 
 
 if __name__=="__main__": unittest.main()

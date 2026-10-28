@@ -94,3 +94,7 @@ Task records carry goals, observations, actions, result evidence, usage and term
 The separate trace.jsonl stream records proposal summaries, planning starts, model-call metadata, goal binding, dispatched steps, effects, rejections and final verification. A proposal event is not approval or completion. Explicitly observed provider reasoning_content and content are archived as separate reasoning / decision channels under model-calls/<call_id>.jsonl and a final .json snapshot. Generic logs still redact credential and raw-reasoning fields; full HTTP bodies, prompts and credentials are never archived.
 
 Observed model calls emit model_start, model_delta(channel,text), model_end(status,usage,reasoning_status). Status is completed/cancelled/timed_out/truncated/interrupted/error; missing or disabled reasoning is separately identified. SSE requires a stop finish_reason and [DONE] before a final decision can return. A valid JSON prefix alone is insufficient. The dashboard's GET /api/calls/<call_id> accepts only generated call identifiers; it exposes no file browsing or execution operation. See DASHBOARD.md.
+
+## 当前双层业务协议修订
+
+Node JSONL 不变。正式 AgentTeam 的角色上下文为 business.v2：Coordinator 的 deliverables/stages 使用自然语言 completion_criteria，不指定 allowed_capabilities/acceptance_checks；request_information 只指定 question/evidence_refs。Worker 的 prepare_verification 编译根交付和阶段检查，程序冻结并建立动作前基线。无独立 reviewer 调用。具体字段、兼容和验证限制见 [架构修订](implementation/COORDINATOR_AUTONOMY.md)。旧内部契约只保留给回归夹具；旧 semantic_review 验收不能自动通过。

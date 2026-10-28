@@ -10,7 +10,7 @@ import json
 import time
 import uuid
 
-from sim_agent.domain.contracts import (TaskContract, parse_stages, parse_proposal, object_value,
+from sim_agent.domain.contracts import (TaskContract, parse_stages, parse_proposal, parse_checks, object_value,
                                         text_value, list_value, refs)
 from sim_agent.domain.constraints import explicit_constraints, check_inventory, merge_constraints
 from sim_agent.domain.errors import (AgentError, ValidationError, TaskCancelled, DeadlineExceeded,
@@ -28,6 +28,7 @@ from sim_agent.persistence.task_store import TaskStore
 from sim_agent.interaction.delivery import DeliveryService
 from sim_agent.verification.service import VerificationService, parse_report
 from sim_agent.observability.jsonl import utc_now
+from sim_agent.agents.business_context import coordinator_context
 
 
 def uid(prefix): return prefix + "-" + uuid.uuid4().hex
@@ -201,6 +202,8 @@ class TaskRuntime(ExecutionController):
         if latest_raw is not None: ctx["observation"]=latest_raw
         if len(json.dumps(ctx,ensure_ascii=False))>110_000:
             raise DeadlineExceeded("上下文超出有界窗口；保留需求约束，停止而非截断")
+        if role == "coordinator" and getattr(self.team,"protocol_version",None)=="business.v2":
+            return coordinator_context(ctx)
         return ctx
 
     async def _model(self, role, purpose, extra=None):
@@ -229,7 +232,7 @@ class TaskRuntime(ExecutionController):
             if opened and event.get("type")=="model_delta":
                 self._logs.model_event({**event,"call_id":call_id})
         try:
-            context=self._context(role,purpose) if role!="reviewer" else {}
+            context=self._context(role,purpose)
             if extra: context.update(extra)
             result=await self._race(self.team.call(role,context,min(self._config.model.timeout_seconds,self.budget.remaining),observer),
                 min(self._config.model.timeout_seconds,self.budget.remaining),self._cancel_event,OperationTimeout("模型调用超时"))
@@ -253,19 +256,6 @@ class TaskRuntime(ExecutionController):
             self._logs.model_event({"type":"model_end","call_id":call_id,"status":end,"usage":usage,
                                    "usage_incomplete":not bool(usage)})
 
-    async def _review(self, purpose, candidate):
-        raw=await self._model("reviewer",purpose,{"review_phase":purpose,"original_request":self.snap["request"],
-            "candidate":candidate,"evidence":self.snap["evidence"][-40:],"constraints":self.state.constraints})
-        try:
-            review=json.loads(raw)
-            object_value(review,"review",{"verdict","issues"})
-            if review["verdict"] not in {"supported","mismatch","uncertain"}: raise ValidationError("审查结果非法")
-            list_value(review["issues"],"issues",maximum=16)
-        except (ValueError,TypeError) as e: raise ValidationError("审查器JSON非法") from e
-        self._save("semantic_review", {"purpose":purpose,"review":review})
-        if review["verdict"]!="supported" or review["issues"]:
-            raise ValidationError("语义验收未通过："+canonical_json(review))
-
     async def _accept_contract(self, raw):
         if self.snap.get("contract") is not None: raise ValidationError("约定已接受，需用户纠正才能改变需求")
         source=[self.snap["request"]["command_text"]]+[a["text"] for a in self.snap["request"]["amendments"]]
@@ -276,7 +266,6 @@ class TaskRuntime(ExecutionController):
             raise ValidationError("报告交付channel必须匹配当前入口："+self.delivery_channel)
         if unresolved_reference(source[0]) and not self.snap["request"]["amendments"]:
             raise ValidationError("未绑定指代，请先澄清，不得猜箱子位置")
-        await self._review("contract_alignment",c.to_dict())
         check_inventory(c.data["constraints"],self.state.observation.raw)
         self.state.constraints=c.data["constraints"]
         self.snap["contract"]=c.to_dict(); self.snap["contract_revision"]+=1
@@ -321,7 +310,7 @@ class TaskRuntime(ExecutionController):
             delivery_status=self.snap.get("delivery_status"),delivery_channel=self.delivery_channel,
             contract=self.snap["contract"],
             verify_live=lambda goal,state:self._verify_live(goal,state,self.deadline,self._cancel_event),
-            review=self._review)
+            )
         self._save("verification",{"verification":{"ok":result,"checks":outcomes}})
         return result,outcomes
 
@@ -337,7 +326,10 @@ class TaskRuntime(ExecutionController):
             self._bind_position(args["position"])
         call=validate_step({"op":op,"args":args})
         if op=="act":
-            checks=TaskContract(self.snap["contract"]).checks
+            contract=TaskContract(self.snap["contract"])
+            if not contract.checks_ready or not self.stage["acceptance_checks"]:
+                raise ValidationError("先由Worker编译根交付和阶段完成标准，再执行动作")
+            checks=contract.checks
             await self._baselines(checks,self.state)
             self.snap["mutations_started"]=True
             self._save("mutation_authorized")
@@ -349,6 +341,45 @@ class TaskRuntime(ExecutionController):
         if op=="act": self._evidence("action",{"args":call.args,"status":result.status,"result":result.result,"evidence":result.evidence},result.action_id)
         self._save("result", {"op":op,"args":call.args,"status":result.status,"error":result.error})
         if result.status!="succeeded": raise ValidationError(result.error or "动作未成功")
+
+    async def _prepare_verification(self, payload, scoped):
+        """Worker compiles business criteria once, before effects; it cannot edit intent."""
+        contract=TaskContract(self.snap["contract"]) if self.snap.get("contract") else None
+        drafts=list_value(payload["deliverables"],"deliverables",maximum=16)
+        stage_checks=list_value(payload["stage_checks"],"stage_checks",maximum=16)
+        if contract is None and drafts: raise ValidationError("调查阶段不能自行建立根任务约定")
+        if contract and contract.checks_ready and drafts: raise ValidationError("根验收已冻结，不可替换")
+        compiled={}
+        ids=contract.requirement_ids if contract else set()
+        for draft in drafts:
+            object_value(draft,"verification deliverable",{"id","acceptance_checks"})
+            if draft["id"] in compiled: raise ValidationError("交付验收ID重复")
+            checks=parse_checks(draft["acceptance_checks"],ids)
+            if any(c.get("scope")=="stage" for c in checks): raise ValidationError("根交付不能使用阶段基线")
+            compiled[draft["id"]]=checks
+        if contract and not contract.checks_ready:
+            if self.snap.get("mutations_started"): raise ValidationError("动作之后不可补造根验收")
+            if set(compiled)!={d["id"] for d in contract.data["deliverables"]}:
+                raise ValidationError("必须编译全部根交付，不可遗漏需求")
+        if stage_checks:
+            if self.stage["acceptance_checks"]: raise ValidationError("阶段验收已冻结，不可替换")
+            stage_checks=parse_checks(stage_checks,ids)
+            if any(c["kind"] in {"grounded_report","delivery_submission"} for c in stage_checks):
+                raise ValidationError("Worker阶段不能以聊天代替结果")
+        elif not self.stage.get("information_only") and not self.stage["acceptance_checks"]:
+            raise ValidationError("阶段验收不能为空")
+        all_checks=[c for checks in compiled.values() for c in checks]+stage_checks
+        if any(c["kind"]=="semantic_review" for c in all_checks):
+            raise ValidationError("独立Reviewer已移除，请使用实际状态或证据检查；无法验证则返回blocked")
+        if any(c["kind"]=="delivery_submission" and c["channel"]!=self.delivery_channel for c in all_checks):
+            raise ValidationError("报告回复渠道不匹配")
+        for checks in compiled.values(): await self._baselines(checks,self.state)
+        await self._baselines([c for c in stage_checks if c.get("scope")=="stage"],scoped)
+        if compiled:
+            for d in self.snap["contract"]["deliverables"]: d["acceptance_checks"]=compiled[d["id"]]
+        if stage_checks: self.stage["acceptance_checks"]=stage_checks
+        self.stage["saved_baselines"]={"inventory":scoped.start_inventory,"containers":scoped.container_baselines}
+        self._save("verification_prepared",{"stage":self.stage,"deliverable_ids":list(compiled)})
 
     async def _worker(self, stage):
         try:
@@ -402,6 +433,9 @@ class TaskRuntime(ExecutionController):
                             self.snap["last_error"]=stage["block_reason"]
                             return
                         failures=0
+                    elif proposal["kind"]=="prepare_verification":
+                        await self._prepare_verification(proposal["payload"],scoped)
+                        failures=0
                     elif proposal["kind"]=="submit_result":
                         p=proposal["payload"]
                         refs(p["evidence_ids"],"evidence_ids",[e["id"] for e in self.snap["evidence"]])
@@ -411,6 +445,7 @@ class TaskRuntime(ExecutionController):
                             ok=any(e.get("stage_id")==stage["id"] for e in self.snap["evidence"])
                             results=[]
                         else:
+                            if not stage["acceptance_checks"]: raise ValidationError("阶段尚未建立可执行验收")
                             ok,results=await self._verify(stage["acceptance_checks"],scoped)
                         if not ok: raise ValidationError("阶段验收未通过："+canonical_json(results))
                         stage["status"]="succeeded"; stage["result"]=p
@@ -442,7 +477,8 @@ class TaskRuntime(ExecutionController):
         c=TaskContract(self.snap["contract"])
         refs(p["requirement_ids"],"requirement_ids",c.requirement_ids,1)
         report=parse_report(p["report"],c,self.snap["evidence"])
-        await self._review("report_grounding_and_coverage",{"report":report,"contract":c.to_dict()})
+        if not c.checks_ready:
+            raise ValidationError("先派发Worker编译交付完成标准，不能凭报告文本完成")
         # Verify all world requirements before allowing a success report to be sent.
         work_checks=[k for k in c.checks if k["kind"] not in {"grounded_report","delivery_submission"}]
         self._status("verifying"); self._finalizing=True
@@ -477,7 +513,7 @@ class TaskRuntime(ExecutionController):
         kind,p=proposal["kind"],proposal["payload"]
         if kind=="propose_contract": await self._accept_contract(p["contract_draft"])
         elif kind=="request_information":
-            requested=refs(p["requested_capabilities"],"requested_capabilities",READ_ONLY,1)
+            requested=refs(p["requested_capabilities"],"requested_capabilities",READ_ONLY,1) if "requested_capabilities" in p else sorted(READ_ONLY & self.snap["capabilities"].keys())
             refs(p["evidence_refs"],"evidence_refs",[e["id"] for e in self.snap["evidence"]])
             stage={"id":uid("info"),"title":p["question"],"objective":p["question"],"dependencies":[],
                    "allowed_capabilities":requested,"acceptance_checks":[],"information_only":True}
@@ -494,12 +530,14 @@ class TaskRuntime(ExecutionController):
                 self.snap["pinned_evidence"]=list(set(self.snap.get("pinned_evidence",[])) | set(s["input_evidence_ids"]))
                 if s["id"] in old and old[s["id"]].get("status")=="succeeded":
                     previous=old[s["id"]]
-                    if any(s[k]!=previous[k] for k in ("objective","acceptance_checks","dependencies")):
+                    if any(s.get(k)!=previous.get(k) for k in ("objective","completion_criteria","dependencies")) or ("completion_criteria" not in s and s["acceptance_checks"]!=previous["acceptance_checks"]):
                         raise ValidationError("不能改写已完成阶段")
                     s.update(previous)
                 elif s["id"] in old:
                     for field in ("saved_baselines","attempts","spent","spent_seconds"):
                         if field in old[s["id"]]: s[field]=old[s["id"]][field]
+                    if s.get("completion_criteria")==old[s["id"]].get("completion_criteria") and s["objective"]==old[s["id"]]["objective"]:
+                        s["acceptance_checks"]=old[s["id"]]["acceptance_checks"]
             for s in old.values():
                 if s.get("status")=="succeeded" and s["id"] not in {x["id"] for x in stages}: stages.append(s)
             self.snap["stages"]=stages; self.snap["plan_revision"]+=1
@@ -629,7 +667,7 @@ class TaskRuntime(ExecutionController):
                 before=(sum(bool(e.get("novel")) for e in self.snap["evidence"]),len(self.snap["progress"]),bool(self.snap.get("contract")))
                 try:
                     raw=await self._model("coordinator","advance_task")
-                    proposal=parse_proposal(raw,"coordinator")
+                    proposal=parse_proposal(raw,"coordinator",business=getattr(self.team,"protocol_version",None)=="business.v2")
                     self._save("proposal", {"role":"coordinator","proposal":proposal})
                     await self._coordinator_step(proposal)
                     repairs=0

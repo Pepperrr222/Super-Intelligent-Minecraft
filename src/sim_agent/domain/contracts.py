@@ -105,6 +105,12 @@ def parse_checks(value, requirement_ids):
     return checks
 
 
+def parse_criteria(value):
+    """Business outcomes are open text, not a menu of executable goals."""
+    return [text_value(v, "completion_criteria", 1200)
+            for v in list_value(value, "completion_criteria", maximum=16, minimum=1)]
+
+
 @dataclass(frozen=True)
 class TaskContract:
     data: dict[str, Any]
@@ -121,6 +127,10 @@ class TaskContract:
     def checks(self):
         return [c for d in self.data["deliverables"] for c in d["acceptance_checks"]]
 
+    @property
+    def checks_ready(self):
+        return all(d.get("acceptance_checks") for d in self.data["deliverables"])
+
     def to_dict(self):
         return copy.deepcopy(self.data)
 
@@ -134,7 +144,7 @@ class TaskContract:
         d["schema_version"]="task-contract.v1"
         proposed=parse_constraints(d["constraints"])
         if user_revision:
-            # Only explicit fields may change. Independent alignment review must confirm the amendment authorizes them.
+            # Explicit corrections may change fields; normal proposals cannot relax constraints.
             revised=copy.deepcopy(inherited_constraints)
             for key,value in proposed.items():
                 if key=="keep_inventory": revised[key]={**revised.get(key,{}),**value}
@@ -157,13 +167,19 @@ class TaskContract:
                     raise ValidationError("source_ref必须为原文或有效纠正中的真实片段")
         covered = set(); deliverable_ids = set()
         for dli in list_value(d["deliverables"], "deliverables", maximum=16, minimum=1):
-            object_value(dli, "deliverable", {"id", "description", "requirement_ids", "acceptance_checks"}, {"required"})
+            business = "completion_criteria" in dli
+            object_value(dli, "deliverable", {"id", "description", "requirement_ids",
+                         "completion_criteria" if business else "acceptance_checks"}, {"required"})
             identifier(dli["id"]); text_value(dli["description"], "description")
             if dli["id"] in deliverable_ids or dli.get("required", True) is not True:
                 raise ValidationError("交付必须唯一且required=true")
             deliverable_ids.add(dli["id"])
             covered.update(refs(dli["requirement_ids"], "requirement_ids", ids, 1))
-            dli["acceptance_checks"] = parse_checks(dli["acceptance_checks"], ids)
+            if business:
+                dli["completion_criteria"] = parse_criteria(dli["completion_criteria"])
+                dli["acceptance_checks"] = []  # Worker compiles; never treated as verified.
+            else:
+                dli["acceptance_checks"] = parse_checks(dli["acceptance_checks"], ids)
             if any(c.get("scope") == "stage" for c in dli["acceptance_checks"]):
                 raise ValidationError("根交付不能使用stage基线")
         mandatory={r["id"] for r in d["requirements"] if r.get("kind","result")!="permission"}
@@ -189,15 +205,26 @@ def parse_stages(raw, contract, capabilities, maximum=12, completed_ids=()):
     stages = copy.deepcopy(list_value(raw, "stages", maximum=maximum, minimum=1))
     ids = set()
     for s in stages:
-        object_value(s, "stage", {"id", "title", "objective", "requirement_ids", "dependencies", "allowed_capabilities", "acceptance_checks"},
+        business = "completion_criteria" in s
+        fields = {"completion_criteria", "mode"} if business else {"allowed_capabilities", "acceptance_checks"}
+        object_value(s, "stage", {"id", "title", "objective", "requirement_ids", "dependencies"} | fields,
                      {"input_evidence_ids", "expected_outputs", "budget"})
         identifier(s["id"]); text_value(s["title"], "title", 200); text_value(s["objective"], "objective")
         if s["id"] in ids:
             raise ValidationError("阶段ID重复")
         ids.add(s["id"])
         refs(s["requirement_ids"], "requirement_ids", contract.requirement_ids, 1)
-        refs(s["allowed_capabilities"], "allowed_capabilities", capabilities, 0)
-        s["acceptance_checks"] = parse_checks(s["acceptance_checks"], contract.requirement_ids)
+        if business:
+            if s["mode"] not in {"investigate", "execute"}:
+                raise ValidationError("stage.mode必须是investigate/execute")
+            s["completion_criteria"] = parse_criteria(s["completion_criteria"])
+            s["information_only"] = s["mode"] == "investigate"
+            s["allowed_capabilities"] = [k for k in capabilities
+                if not s["information_only"] or k in {"observe", "find_blocks", "recipes"}]
+            s["acceptance_checks"] = []
+        else:
+            refs(s["allowed_capabilities"], "allowed_capabilities", capabilities, 0)
+            s["acceptance_checks"] = parse_checks(s["acceptance_checks"], contract.requirement_ids)
         if any(c["kind"] in {"grounded_report","delivery_submission"} for c in s["acceptance_checks"]):
             raise ValidationError("报告与聊天交付由Coordinator完成，不是Worker阶段验收；Worker阶段只收集证据和完成局部工作")
         s.setdefault("input_evidence_ids", [])
@@ -232,7 +259,10 @@ COORDINATOR_FIELDS = {
     "request_completion": ({"deliverable_refs", "evidence_ids"}, set()),
     "cannot_complete": ({"reason_code", "explanation", "unmet_requirements"}, set()),
 }
+BUSINESS_COORDINATOR_FIELDS = {**COORDINATOR_FIELDS,
+    "request_information": ({"question", "evidence_refs"}, set())}
 WORKER_FIELDS = {
+    "prepare_verification": ({"deliverables", "stage_checks"}, set()),
     "query": ({"op", "args", "purpose"}, set()),
     "act": ({"kind", "args", "purpose"}, set()),
     "submit_result": ({"summary", "output_refs", "evidence_ids", "unresolved_items"}, set()),
@@ -240,7 +270,7 @@ WORKER_FIELDS = {
 }
 
 
-def parse_proposal(raw_text, role):
+def parse_proposal(raw_text, role, *, business=False):
     if not isinstance(raw_text,str) or len(raw_text)>200_000:
         raise ValidationError("提议输出为空或过长")
     try:
@@ -251,9 +281,19 @@ def parse_proposal(raw_text, role):
         raise ValidationError("提议不是完整有效JSON") from e
     object_value(d, "proposal", {"schema_version", "kind", "summary", "payload"})
     if d["schema_version"] != role + "-proposal.v1": raise ValidationError("提议版本不匹配")
-    fields = COORDINATOR_FIELDS if role == "coordinator" else WORKER_FIELDS
+    if role not in {"coordinator", "worker"}: raise ValidationError("未知模型角色")
+    fields = (BUSINESS_COORDINATOR_FIELDS if business else COORDINATOR_FIELDS) if role == "coordinator" else WORKER_FIELDS
     if not isinstance(d["kind"],str) or d["kind"] not in fields: raise ValidationError("此角色不允许该提议")
     required, optional = fields[d["kind"]]
     object_value(d["payload"], "payload", required, optional)
     text_value(d["summary"], "summary", 1000)
+    if business and role == "coordinator":
+        p = d["payload"]
+        if "contract_draft" in p:
+            for deliverable in list_value(p["contract_draft"].get("deliverables"), "deliverables", minimum=1):
+                if "acceptance_checks" in deliverable or "completion_criteria" not in deliverable:
+                    raise ValidationError("Coordinator只描述completion_criteria，底层验收由Worker编译")
+        for stage in p.get("stages", []):
+            if "allowed_capabilities" in stage or "acceptance_checks" in stage or "completion_criteria" not in stage:
+                raise ValidationError("Coordinator阶段只描述目标、mode和completion_criteria，不指定工具或底层检查")
     return d

@@ -2,9 +2,11 @@
 
 ## 两层原版路径（显式启用）
 
+当前角色设计见 [Coordinator 自主规划修订](implementation/COORDINATOR_AUTONOMY.md)：Coordinator 自主理解、调查和调度，不接收底层动作协议；Worker 编译自然语言完成标准并执行；取消独立 LLM Reviewer，保留程序控制和验证。business_context.py 提供最高层事实视图。
+
 orchestration.mode=hierarchical（或CLI覆盖）使用agents/coordinator.py中的独立模型上下文；orchestration/task_runtime.py管理原始请求、Contract、阶段、重规划与版本；execution/controller.py为新旧路径共享动作实现；verification/service.py验收；interaction/delivery.py保存报告提交回执；persistence/task_store.py存当前任务。新路径仅B0，不检索跨任务经验。
 
-任务约定可表达报告/解释，不强制首轮Goal。状态谓词只是验收手段，根基线不随阶段/纠正重置；报告依据、实际工作和提交回执均检查后才completed。重启识别中断，显式续接前核对；未知非幂等结果不重放。面板展示真实角色、阶段、预算与报告。
+任务约定可表达报告/解释，不强制首轮Goal。状态谓词只是验收手段，根基线不随阶段/纠正重置；报告结构与引用、实际工作和提交回执均检查后才completed；未执行独立模型语义审查。重启识别中断，显式续接前核对；未知非幂等结果不重放。面板展示真实角色、阶段、预算与报告。
 
 默认legacy保留，完整发布验收状态见[PROGRESS](implementation/PROGRESS.md)，运行与边界见[说明](implementation/RUNNING.md)。
 

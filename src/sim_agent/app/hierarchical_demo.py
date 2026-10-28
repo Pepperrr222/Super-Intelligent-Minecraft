@@ -39,24 +39,31 @@ class DemoTeam(AgentTeam):
         # Schema IDs are ASCII, human titles may be Chinese.
         for s,i in zip(stages,["source","make","deliver"]): s["id"]=i
         stages[1]["dependencies"]=["source"]; stages[2]["dependencies"]=["make"]
+        root_checks=contract["deliverables"][0].pop("acceptance_checks")
+        contract["deliverables"][0]["completion_criteria"]=["源箱减少2根原木，目标箱新增8块木板，保留原有木板并回复玩家"]
+        preparations=[]
+        for index,s in enumerate(stages):
+            checks=s.pop("acceptance_checks"); s.pop("allowed_capabilities")
+            s["mode"]="execute"; s["completion_criteria"]=[s["title"]+"完成且数量经核对"]
+            preparations.append(p("worker","prepare_verification",
+                deliverables=[{"id":"d1","acceptance_checks":root_checks}] if index==0 else [],stage_checks=checks))
         done=p("worker","submit_result",summary="申请阶段验收",output_refs=[],evidence_ids=[],unresolved_items=[])
         self.coordinator=iter([p("coordinator","propose_contract",contract_draft=contract),
             p("coordinator","propose_plan",stages=stages,change_reason="依赖顺序",based_on_evidence_ids=[]),
             *[p("coordinator","dispatch",stage_id=s["id"]) for s in stages],None])
         self.worker=iter([
-            p("worker","act",kind="withdraw",args={"position":SOURCE,"item":"minecraft:oak_log","count":2},purpose="取料"),done,
-            p("worker","act",kind="craft",args={"item":"minecraft:oak_planks","count":8},purpose="制作"),done,
-            p("worker","act",kind="deposit",args={"position":TARGET,"item":"minecraft:oak_planks","count":8},purpose="交付"),done])
+            preparations[0],p("worker","act",kind="withdraw",args={"position":SOURCE,"item":"minecraft:oak_log","count":2},purpose="取料"),done,
+            preparations[1],p("worker","act",kind="craft",args={"item":"minecraft:oak_planks","count":8},purpose="制作"),done,
+            preparations[2],p("worker","act",kind="deposit",args={"position":TARGET,"item":"minecraft:oak_planks","count":8},purpose="交付"),done])
 
     async def call(self,role,context,timeout,observer):
-        if role=="reviewer": value={"verdict":"supported","issues":[]}
-        else:
-            value=next(self.coordinator if role=="coordinator" else self.worker)
-            if value is None:
-                value=p("coordinator","submit_report",requirement_ids=["r1"],report={
-                    "text":"离线夹具已从(0,64,0)箱取2根原木，制作并交付8块木板到(4,64,0)箱；保留原有3块木板。",
-                    "claims":[{"text":"制作并交付8块木板","kind":"observed","evidence_refs":[context['evidence'][-1]['id']]}],
-                    "covered_requirement_ids":["r1"],"limitations":["MOCK_ONLY，脚本模型，无真实游戏或API"]})
+        if role not in {"coordinator","worker"}: raise AssertionError("Unexpected model role")
+        value=next(self.coordinator if role=="coordinator" else self.worker)
+        if value is None:
+            value=p("coordinator","submit_report",requirement_ids=["r1"],report={
+                "text":"离线夹具已从(0,64,0)箱取2根原木，制作并交付8块木板到(4,64,0)箱；保留原有3块木板。",
+                "claims":[{"text":"制作并交付8块木板","kind":"observed","evidence_refs":[context['evidence'][-1]['id']]}],
+                "covered_requirement_ids":["r1"],"limitations":["MOCK_ONLY，脚本模型，无真实游戏或API"]})
         observer({"type":"model_delta","channel":"reasoning","text":"MOCK_ONLY：预设角色输出，用于连线演示，不代表真实模型思考。"})
         observer({"type":"model_delta","channel":"decision","text":json.dumps(value,ensure_ascii=False)})
         return ModelResult(json.dumps(value,ensure_ascii=False),{},"SCRIPTED_MOCK_ONLY")
