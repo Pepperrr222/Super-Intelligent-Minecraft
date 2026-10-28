@@ -120,6 +120,8 @@ class AgentService:
         if not message.startswith(prefix):
             return "ignored"
         command = message[len(prefix) :].strip()
+        self._logs.trace({"type": "chat_command", "username": username, "message": command,
+                          "task_id": self._runner.task_id if self._busy else None})
         if command.casefold() in _STOP_COMMANDS:
             return await self.stop_current(source="chat")
         clarification_context = None
@@ -150,7 +152,7 @@ class AgentService:
             if self._revision_task and not self._revision_task.done():
                 return "busy"
             self._task_version += 1
-            self._revision_task = asyncio.create_task(self._correct_task(correction, self._task_version))
+            self._revision_task = asyncio.create_task(self._correct_task(correction, self._task_version, username))
             self._revision_task.add_done_callback(self._consume_task_result)
             return "correcting"
         if self._busy or (self._revision_task and not self._revision_task.done()):
@@ -173,7 +175,7 @@ class AgentService:
         self._last_outcome = None
         self._pending_stop = False
         self._current = asyncio.create_task(
-            self._chat_task(command, self._task_version, clarification_context), name="basic-agent-chat-task"
+            self._chat_task(command, self._task_version, clarification_context, username), name="basic-agent-chat-task"
         )
         self._current.add_done_callback(self._consume_task_result)
         return "started"
@@ -184,14 +186,14 @@ class AgentService:
         except (asyncio.CancelledError, Exception):
             pass
 
-    async def _chat_task(self, command: str, version: int = 1, continuation: dict | None = None) -> None:
+    async def _chat_task(self, command: str, version: int = 1, continuation: dict | None = None, requester: str | None = None) -> None:
         try:
             if self._pending_stop:
                 self._pending_stop = False
                 await self._say("已取消任务。", quiet=False)
                 return
             try:
-                outcome = await self._runner.run(command, task_version=version, continuation_context=continuation)
+                outcome = await self._runner.run(command, task_version=version, continuation_context=continuation, requested_by=requester)
                 self._last_outcome = outcome
             except Exception as exc:
                 self._emit(f"任务启动失败：{type(exc).__name__}: {exc}")
@@ -202,7 +204,7 @@ class AgentService:
             self._busy = False
             self._current = None
 
-    async def _correct_task(self, correction: str, version: int) -> None:
+    async def _correct_task(self, correction: str, version: int, requester: str | None = None) -> None:
         current = self._current
         original = self._task_text
         await self._runner.cancel("玩家纠正任务")
@@ -228,7 +230,7 @@ class AgentService:
         }
         self._busy = True
         self._pending_stop = False
-        self._current = asyncio.create_task(self._chat_task(correction, version, continuation))
+        self._current = asyncio.create_task(self._chat_task(correction, version, continuation, requester))
         self._current.add_done_callback(self._consume_task_result)
 
     async def stop_current(self, *, source: str = "chat") -> str:

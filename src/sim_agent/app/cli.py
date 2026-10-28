@@ -53,6 +53,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--version", action="version", version=__version__)
     parser.add_argument("--planner", choices=["llm", "rules"], default="llm", help="llm 为云模型；rules 为无需密钥的有限中文语法基线")
+    parser.add_argument("--dashboard", action="store_true", help="同时启动只读规划面板（默认 http://127.0.0.1:8765）")
+    parser.add_argument("--dashboard-port", type=int, default=8765, help="内置规划面板端口")
     return parser
 
 
@@ -97,7 +99,15 @@ async def _run(args: argparse.Namespace, config: Any, goal_json: dict[str, Any] 
         memory=memory,
     )
     started = False
+    dashboard = None
     try:
+        if args.dashboard:
+            from sim_agent.app.dashboard import DashboardServer
+            try:
+                dashboard = DashboardServer(config.runtime_dir, port=args.dashboard_port).start()
+                print(f"规划面板：{dashboard.url}", flush=True)
+            except OSError:
+                print("规划面板端口不可用；Agent 继续运行。可换 --dashboard-port，或使用已启动的独立面板。", flush=True)
         print("正在连接执行器…", flush=True)
         ready = await service.start()
         started = True
@@ -137,6 +147,8 @@ async def _run(args: argparse.Namespace, config: Any, goal_json: dict[str, Any] 
             pass
         logs.close()
         memory.close()
+        if dashboard is not None:
+            dashboard.close()
 
 
 def main(argv: list[str] | None = None) -> int:

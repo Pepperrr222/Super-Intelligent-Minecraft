@@ -82,6 +82,18 @@ sim-agent --config config.json --task "去坐标 1 -60 2 附近"
 
 停止绕过模型，直接取消执行。显式“纠正”先停止旧任务，再把真实进度与新要求交给下一版本；“回答”接续上一次澄清问题。普通新任务在忙碌时仍被拒绝。游戏内进度消息限流，防止原版服将机器人当作刷屏者踢出。只有程序复核目标成立，任务才记为完成。
 
+## 查看实时规划
+
+启动时加 `--dashboard`，浏览器打开终端显示的本机地址（默认 http://127.0.0.1:8765）：
+
+```bash
+python scripts/dev.py run --config config.json --dashboard
+```
+
+面板按时间显示目标、模型公开的决策说明、下一步提案、程序拒绝或放行、动作反馈和独立完成验证，并可切换最近任务。它读取 `runtime_dir/trace.jsonl`，不额外调用模型，也不展示模型内部隐藏推理。升级后需重启 Agent 才能记录逐步规划。
+
+也可单独运行 `python scripts/dashboard.py --config config.json`，在 Agent 退出后继续查看记录；用 `--runtime-dir runtime/demo` 查看明确标记的离线演示。详见 [规划面板](docs/DASHBOARD.md)。
+
 规则模式的可复现交付示例：
 
 ```text

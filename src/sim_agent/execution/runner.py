@@ -222,6 +222,7 @@ class TaskRunner:
         return max(0.0, deadline - self._clock())
 
     async def _notify(self, message: str) -> None:
+        self._logs.trace({"type": "progress", "task_id": self._task_id, "message": message})
         if self._notify_cb is None:
             return
         try:
@@ -327,6 +328,7 @@ class TaskRunner:
         task_id: str | None = None,
         task_version: int = 1,
         continuation_context: dict[str, Any] | None = None,
+        requested_by: str | None = None,
     ) -> TaskOutcome:
         if self._active:
             raise RuntimeError("已有任务在运行，不能并发启动第二个任务")
@@ -366,6 +368,10 @@ class TaskRunner:
                 "timeout_seconds": self._config.agent.task_timeout_seconds,
             }
         )
+        self._logs.trace({"type": "task_start", "task_id": state.task_id, "task": state.task_text,
+                          "requested_by": requested_by,
+                          "task_version": task_version, "max_steps": self._config.agent.max_steps,
+                          "learning_mode": self._config.learning.mode})
         await self._notify(f"任务开始：{_brief(state.task_text, 60)}")
 
         try:
@@ -373,6 +379,7 @@ class TaskRunner:
             await self._notify("正在观察世界…")
             initial = await self._observe(deadline, cancel_event)
             state.apply_observation(initial)
+            self._logs.trace({"type": "observation", "task_id": state.task_id, "observation": initial})
             check_inventory(state.constraints, initial)
             if explicit_goal is not None:
                 state.set_goal(explicit_goal)
@@ -467,6 +474,12 @@ class TaskRunner:
                 "state": state.to_dict(),
             }
         )
+        self._logs.trace({"type": "task_end", "task_id": state.task_id, "task": state.task_text,
+                          "requested_by": requested_by,
+                          "task_version": task_version, "end_state": end_state, "message": message,
+                          "goal": outcome.goal, "verification": outcome.verification,
+                          "usage": outcome.usage, "observation": outcome.final_observation,
+                          "duration_seconds": outcome.duration_seconds})
         if self._memory is not None and state.world_id:
             try:
                 self._memory.record_episode(outcome.to_dict(), world_id=state.world_id,
@@ -524,6 +537,11 @@ class TaskRunner:
                     goal=state.goal.to_dict(), limit=self._config.learning.max_retrieved,
                 )
             await self._notify(f"第 {step_index}/{max_steps} 步：思考中…")
+            self._logs.trace({"type": "planning", "task_id": state.task_id, "step": step_index,
+                              "remaining_seconds": round(self._remaining_or_zero(deadline), 1),
+                              "goal": state.goal.to_dict() if state.goal else None,
+                              "constraints": state.constraints,
+                              "experience_count": len(context.get("experience", []))})
             try:
                 reply = await self._planner_decision(context, deadline, cancel_event)
             except (ModelError, ModelTimeout, OperationTimeout) as exc:
@@ -574,6 +592,14 @@ class TaskRunner:
                 )
                 continue
 
+            # Only the validated public proposal is logged, never raw model
+            # responses, prompts or provider reasoning_content.
+            self._logs.trace({"type": "proposal", "task_id": state.task_id, "step": step_index,
+                              "goal": decision.goal, "constraints": decision.constraints,
+                              "op": decision.step.op, "args": decision.step.args,
+                              "message": decision.message, "model": reply.model,
+                              "model_call": reply.model_call, "latency_ms": reply.latency_ms,
+                              "usage": reply.usage})
             if decision.step.op == "clarify":
                 # A question must never trigger a guessed goal's baseline
                 # inspection, navigation or new constraints as a side effect.
@@ -611,6 +637,9 @@ class TaskRunner:
                     continue
                 if state.goal is None:
                     state.set_goal(proposed_goal)
+                    self._logs.trace({"type": "goal_bound", "task_id": state.task_id,
+                                      "step": step_index, "goal": state.goal.to_dict(),
+                                      "message": state.goal.describe(), "constraints": state.constraints})
                     await self._prepare_goal(state, deadline, cancel_event)
                     await self._notify(f"目标：{state.goal.describe()}")
                 elif not state.goal.equivalent(proposed_goal):
@@ -687,6 +716,8 @@ class TaskRunner:
                 verification = await self._verify_live(
                     state.goal, state, deadline, cancel_event
                 )
+                self._logs.trace({"type": "verification", "task_id": state.task_id, "step": step_index,
+                                  "verification": verification.to_dict()})
                 state.add_step(
                     StepRecord(
                         index=step_index,
@@ -722,6 +753,8 @@ class TaskRunner:
             await self._notify(
                 f"第 {step_index} 步：{self._describe_call(call)}"
             )
+            self._logs.trace({"type": "execution", "task_id": state.task_id, "step": step_index,
+                              "op": call.op, "args": call.args, "message": self._describe_call(call)})
             try:
                 execution = await self._execute(call, state, deadline, cancel_event)
             except (TaskCancelled, DeadlineExceeded, _Halt):
@@ -755,6 +788,10 @@ class TaskRunner:
                 evidence=execution.evidence,
             )
             state.add_step(step)
+            self._logs.trace({"type": "result", "task_id": state.task_id, "step": step_index,
+                              "op": call.op, "status": execution.status, "error": execution.error,
+                              "result": execution.result, "evidence": execution.evidence,
+                              "observation": state.observation.raw if state.observation else None})
             if call.op == "act" and state.observation:
                 check_inventory(state.constraints, state.observation.raw)
 
@@ -828,6 +865,8 @@ class TaskRunner:
                     evidence={"detail": _brief(detail, 400)},
                 )
             )
+        self._logs.trace({"type": "rejected", "task_id": state.task_id, "step": step_index,
+                          "op": op, "status": status, "message": detail, "error": error})
         state.failure_counts[signature] = state.failure_counts.get(signature, 0) + 1
         count = state.failure_counts[signature]
         await self._notify(f"第 {step_index} 步失败：{_brief(detail, 90)}")

@@ -45,6 +45,8 @@ app 组装具体实现。execution 使用 Planner/Backend 协议和领域对象�
 
 Python 与 Node 分进程，使用 stdio JSONL。Node 端库输出统一送 stderr，避免污染协议。
 
+observability 将公开决策摘要写入独立 trace.jsonl：规划请求、模型提案、目标锁定、执行反馈和最终复核分开记录。app/dashboard.py 提供本机只读 HTTP 面板，只投影有界日志，不接触模型密钥或游戏操作入口。模型说明只用于解释提案，不作为事实或完成依据，见 DASHBOARD.md。
+
 ## 一次任务
 
 1. 检查指令拥有者与忙状态，建立唯一 task_id，保存初始库存与世界。

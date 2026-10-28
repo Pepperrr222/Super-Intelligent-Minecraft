@@ -22,7 +22,7 @@ Decision schema:
 {
   "goal": { ... },                 // required on the first decision and on finish
   "step": {"op": "...", "args": { ... }},
-  "message": "short Chinese note"   // optional, <=500 chars
+  "message": "short Chinese decision summary: action purpose and relevant observed fact" // optional, <=500 chars, no private reasoning
 }
 
 Full format examples only (never copy their coordinates or goals into a task):

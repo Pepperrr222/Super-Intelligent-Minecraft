@@ -84,3 +84,5 @@ Model settings optionally include provider (generic/deepseek/siliconflow), think
 learning.mode supports B0/B1. B0 saves evidence without retrieving it. B1 retrieves at most three matching episodes; these are historical advice and do not bypass current action checks. ruleset_id is manually maintained, not automatically discovered.
 
 Task records carry goals, observations, actions, result evidence, usage and terminal status. SQLite episodes are immutable by task_id; skills require explicit replay linkage and two independent successful scenarios before promotion. Templates remain data, with automatic skill execution reserved for B2/B3.
+
+The separate trace.jsonl stream records public proposal summaries, planning starts, goal binding, dispatched steps, effects, rejections and final verification. A proposal event is not approval or completion. Raw provider reasoning_content and raw model responses are not recorded. The local read-only dashboard exposes only bounded trace events and explicitly projected legacy task summaries; see DASHBOARD.md.

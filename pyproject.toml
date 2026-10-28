@@ -16,9 +16,11 @@ dev = ["pytest>=8.0"]
 sim-agent = "sim_agent.app.cli:main"
 sim-demo = "sim_agent.app.demo:main"
 sim-evaluate = "sim_agent.evaluation.metrics:main"
+sim-dashboard = "sim_agent.app.dashboard:main"
 
 [tool.setuptools.package-data]
 "sim_agent.memory" = ["migrations/*.sql"]
+"sim_agent.app" = ["dashboard.html"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

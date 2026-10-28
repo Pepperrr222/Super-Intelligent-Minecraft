@@ -16,6 +16,9 @@ _SENSITIVE_KEY_PARTS = (
     "secret",
     "access_token",
     "refresh_token",
+    "reasoning_content",
+    "thinking_content",
+    "chain_of_thought",
 )
 
 
@@ -70,7 +73,7 @@ class JsonlLog:
 
 
 class RuntimeLogs:
-    """The three JSONL streams required by the protocol."""
+    """Protocol logs plus a separate public decision-summary event stream."""
 
     def __init__(self, runtime_dir: Path) -> None:
         self.runtime_dir = Path(runtime_dir)
@@ -78,6 +81,7 @@ class RuntimeLogs:
         self.requests = JsonlLog(self.runtime_dir / "requests.jsonl")
         self.tasks = JsonlLog(self.runtime_dir / "tasks.jsonl")
         self.usage = JsonlLog(self.runtime_dir / "usage.jsonl")
+        self.traces = JsonlLog(self.runtime_dir / "trace.jsonl")
 
     def request(self, record: Mapping[str, Any]) -> None:
         self.requests.write({"ts": utc_now(), **dict(record)})
@@ -88,10 +92,14 @@ class RuntimeLogs:
     def model_usage(self, record: Mapping[str, Any]) -> None:
         self.usage.write({"ts": utc_now(), **dict(record)})
 
+    def trace(self, record: Mapping[str, Any]) -> None:
+        self.traces.write({"ts": utc_now(), **dict(record)})
+
     def close(self) -> None:
         self.requests.close()
         self.tasks.close()
         self.usage.close()
+        self.traces.close()
 
 
 class NullLogs:
@@ -104,6 +112,9 @@ class NullLogs:
         return None
 
     def model_usage(self, record: Mapping[str, Any]) -> None:
+        return None
+
+    def trace(self, record: Mapping[str, Any]) -> None:
         return None
 
     def close(self) -> None:
