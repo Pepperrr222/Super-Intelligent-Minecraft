@@ -111,7 +111,7 @@ class RuntimeLogs:
             raise ValueError("Invalid model call id")
         kind = record.get("type")
         if kind == "model_start":
-            meta = {k: record[k] for k in ("call_id", "task_id", "step", "model", "provider", "thinking", "stream") if k in record}
+            meta = {k: record[k] for k in ("call_id", "task_id", "step", "model", "provider", "thinking", "stream", "role", "purpose", "root_task_id", "task_version", "plan_revision", "stage_id", "attempt_id") if k in record}
             meta.update(status="receiving", ts=utc_now(), reasoning_chars=0, decision_chars=0)
             state = {"meta": meta, "reasoning": [], "decision": [], "last_publish": time.monotonic(),
                      "log": JsonlLog(self.calls_dir / (call_id + ".jsonl"))}

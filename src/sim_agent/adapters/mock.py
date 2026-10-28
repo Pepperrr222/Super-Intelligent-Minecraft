@@ -19,6 +19,7 @@ class MockBackend:
         self.containers = {0: {"minecraft:oak_log": 2}, 4: {}}
         self.actions: dict[str, dict[str, Any]] = {}
         self.events: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+        self.messages: list[str] = []
 
     async def start(self, timeout=None):
         return {"username": "MockAgent", "version": "mock", "world_id": "mock-world"}
@@ -27,6 +28,9 @@ class MockBackend:
         return [{"name": k, "count": v} for k, v in inventory.items() if v > 0]
 
     async def request(self, op, args, timeout=None):
+        if op == "say":
+            self.messages.append(args["message"])
+            return {"sent": True}
         if op == "observe":
             return {"connected": True, "world_id": "mock-world", "observed_at": utc_now(),
                     "username": "MockAgent", "position": {"x": 0, "y": 64, "z": 0},

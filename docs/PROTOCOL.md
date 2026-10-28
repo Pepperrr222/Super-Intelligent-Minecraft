@@ -51,7 +51,13 @@ Pathfinding does not dig or place blocks automatically. Only standard supported 
 
 `say {message}` sends at most 200 characters and rejects slash commands/control characters. `shutdown {}` stops and quits. No automatic reconnect replays tasks.
 
-## Model proposal
+## Hierarchical model proposal (opt-in)
+
+With orchestration.mode=hierarchical, the existing Node JSONL protocol is reused. Coordinator/Worker use distinct internal envelopes: schema_version, kind, summary, payload. The Coordinator proposes contracts/plans/dispatch/report/clarification; Worker proposes query/act/submit_result/blocked. Neither writes verified facts or completion directly. Schemas: implementation/VANILLA_AGENT_V1.md. Current limits: implementation/RUNNING.md.
+
+All roles and retries share root budgets and version checks. Reporting is a first-class deliverable; a receipt means submitted, not read. TaskStore persists current-task snapshots and action journals separately from learning. Unknown actions/chat receipts do not automatically replay. Explicit continuation preserves baselines, effects and spent budgets. Only B0 is supported; no silent rules/legacy fallback.
+
+## Legacy model proposal
 
 ```json
 {

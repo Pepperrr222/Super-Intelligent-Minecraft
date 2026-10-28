@@ -84,6 +84,14 @@ sim-agent --config config.json --task "去坐标 1 -60 2 附近"
 
 ## 查看实时规划
 
+原版两层架构已新增显式运行入口，默认仍为legacy，等待完整真实验收后再切换。使用现有配置启动本次进程的两层模式：
+
+```powershell
+.\.venv\Scripts\python.exe scripts/dev.py run --config config.json --orchestration hierarchical --dashboard
+```
+
+要求 `learning.mode=B0`。Coordinator 管理原始需求、阶段和最终报告；Worker 在阶段内调用共用执行器；面板分别展示两层调用和验收。停止、纠正、回答继续沿用聊天前缀；重启后中断任务须显式 `!agent 继续 <root_task_id>`。参数、预算和验证边界见[两层运行说明](docs/implementation/RUNNING.md)。私人配置不会自动迁移。
+
 启动时加 `--dashboard`，浏览器打开终端显示的本机地址（默认 http://127.0.0.1:8765）：
 
 ```bash
@@ -119,6 +127,7 @@ python scripts/dev.py run --config config.json --dashboard
 
 ## 文档与验证边界
 
+- [原版两层 Agent 实现手册](docs/implementation/VANILLA_AGENT_V1.md)：待实施架构、接口、迁移步骤及配套验收/LLM交接说明；本版先完善原版 Bot，学习与整合包扩展延期。
 - [系统架构](docs/ARCHITECTURE.md)：职责、数据流和原设计对应关系。
 - [动作协议](docs/PROTOCOL.md)：JSONL 契约与数量语义。
 - [云模型配置](docs/MODELS.md)：DeepSeek/SiliconFlow 参数、密钥路径和真实验收入口。

@@ -103,6 +103,35 @@ def snapshot(runtime_dir: Path) -> dict:
             continue
         task = tasks.setdefault(task_id, {"task_id": task_id, "task": "任务详情不在当前日志窗口内", "status": "unknown", "last_step": 0})
         task["updated_at"] = event.get("ts")
+        if event.get("root_task_id"):
+            task["root_task_id"] = event["root_task_id"]
+            task["mode"] = "hierarchical"
+            task["execution_environment"] = event.get("execution_environment")
+            if isinstance(event.get("view"), dict):
+                for key,value in event["view"].items():
+                    if value is not None: task[key]=value
+            for key in ("request", "contract", "budget", "report", "delivery_status", "work_status"):
+                if key in event:
+                    task[key] = event[key]
+            if event.get("type") == "state_changed":
+                task["status"] = event.get("status", "unknown")
+            if isinstance(event.get("stages"), list):
+                task["stages"] = event["stages"]
+            if isinstance(event.get("stage"), dict):
+                stages = task.setdefault("stages", [])
+                stage = event["stage"]
+                old = next((s for s in stages if s.get("id") == stage.get("id")), None)
+                if old is not None:
+                    old.update(stage)
+                else:
+                    stages.append(stage)
+            if event.get("type") == "plan_revised":
+                task["plan_reason"] = event.get("reason")
+            if event.get("type") == "model_completed":
+                task["model"] = event.get("model")
+                task["model_call"] = event.get("model_call")
+            if event.get("type") == "delivery_submitted":
+                task["last_delivery"] = event.get("part_index")
         if event.get("type") in {"task_start", "task_end"}:
             for key in ("task", "task_version", "max_steps", "learning_mode", "historical", "duration_seconds", "requested_by"):
                 if key in event:

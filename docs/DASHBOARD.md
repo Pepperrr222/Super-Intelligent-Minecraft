@@ -1,5 +1,7 @@
 # 规划与执行面板
 
+两层模式新增任务约定、实际阶段依赖和状态、计划修订原因、预算、完整报告与交付回执。模型选择器区分Coordinator/Worker/Reviewer及stage_id；旧调用明确为Legacy。离线脚本演示标记SCRIPTED_MOCK_ONLY，不能当真实模型或游戏验证。入口与当前验证范围见[运行说明](implementation/RUNNING.md)。
+
 面板展示上层模型接口实际提供的思考文本、最终决策输出，以及当前目标与约束、世界观察、执行反馈、重规划、最终验证和用量。思考区读取 reasoning_content 原文，不调用另一个模型总结，也不补写未提供的内容。思考和最终决策互相隔离；程序不会把思考文本当作动作或成功依据。
 
 本机配置中 model.thinking=true、model.stream=true 可开启实时思考。DeepSeek 与 SiliconFlow 的参数由适配层分别转换；旧配置默认不启用流式，仍然可用。升级后重启 Agent 生效，原有时间和输出预算不会自动增大。

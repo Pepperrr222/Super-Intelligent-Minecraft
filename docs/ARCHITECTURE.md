@@ -1,5 +1,15 @@
 # 系统架构
 
+## 两层原版路径（显式启用）
+
+orchestration.mode=hierarchical（或CLI覆盖）使用agents/coordinator.py中的独立模型上下文；orchestration/task_runtime.py管理原始请求、Contract、阶段、重规划与版本；execution/controller.py为新旧路径共享动作实现；verification/service.py验收；interaction/delivery.py保存报告提交回执；persistence/task_store.py存当前任务。新路径仅B0，不检索跨任务经验。
+
+任务约定可表达报告/解释，不强制首轮Goal。状态谓词只是验收手段，根基线不随阶段/纠正重置；报告依据、实际工作和提交回执均检查后才completed。重启识别中断，显式续接前核对；未知非幂等结果不重放。面板展示真实角色、阶段、预算与报告。
+
+默认legacy保留，完整发布验收状态见[PROGRESS](implementation/PROGRESS.md)，运行与边界见[说明](implementation/RUNNING.md)。
+
+## 既有 legacy 路径
+
 第一阶段以原版可执行 Agent 为目标，遵循原始《Minecraft基础版Agent》中的高层决策、执行控制、观察验证和经验积累设计。原始方案保存在 `design/`，实现边界以本文和 VALIDATION.md 为准。
 
 ```mermaid

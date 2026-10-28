@@ -1,0 +1,1 @@
+"""Explicit vanilla backend capabilities."""

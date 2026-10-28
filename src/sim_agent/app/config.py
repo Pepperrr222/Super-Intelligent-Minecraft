@@ -54,6 +54,18 @@ class LearningConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class OrchestrationConfig:
+    mode: str = "legacy"
+    max_model_calls: int = 40
+    max_plan_stages: int = 12
+    max_replans: int = 3
+    max_local_failures: int = 2
+    max_schema_repairs: int = 2
+    max_contract_repairs: int = 2
+    recovery: str = "explicit"
+
+
+@dataclass(frozen=True, slots=True)
 class AppConfig:
     minecraft: MinecraftConfig
     agent: AgentConfig
@@ -63,6 +75,7 @@ class AppConfig:
     raw: dict[str, Any]
     learning: LearningConfig = field(default_factory=LearningConfig)
     node_executable: str | None = None
+    orchestration: OrchestrationConfig = field(default_factory=OrchestrationConfig)
 
 
 def _section(root: dict[str, Any], name: str) -> dict[str, Any]:
@@ -192,6 +205,20 @@ def load_config(path: str | Path) -> AppConfig:
         # them depend on the shell's current directory.
         runtime_path = config_path.parent / runtime_path
 
+    orchestration_raw = root.get("orchestration", {})
+    if not isinstance(orchestration_raw, dict):
+        raise ConfigError("orchestration必须是对象")
+    defaults = OrchestrationConfig()
+    if set(orchestration_raw) - set(defaults.__dataclass_fields__):
+        raise ConfigError("orchestration包含未知配置")
+    values = {name: orchestration_raw.get(name, getattr(defaults, name)) for name in defaults.__dataclass_fields__}
+    if values["mode"] not in {"legacy", "hierarchical"} or values["recovery"] != "explicit":
+        raise ConfigError("orchestration模式仅支持legacy/hierarchical，恢复必须explicit")
+    for name in ("max_model_calls", "max_plan_stages", "max_replans", "max_local_failures", "max_schema_repairs", "max_contract_repairs"):
+        values[name] = _int(values, name, "orchestration", 1, 100)
+    if values["mode"] == "hierarchical" and mode != "B0":
+        raise ConfigError("本版hierarchical仅支持B0，学习延期；请显式使用B0配置")
+
     return AppConfig(
         minecraft=MinecraftConfig(
             host=host,
@@ -223,4 +250,5 @@ def load_config(path: str | Path) -> AppConfig:
         raw=root,
         learning=LearningConfig(mode, ruleset_id, max_retrieved),
         node_executable=node_executable,
+        orchestration=OrchestrationConfig(**values),
     )

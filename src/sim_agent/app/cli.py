@@ -53,6 +53,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--version", action="version", version=__version__)
     parser.add_argument("--planner", choices=["llm", "rules"], default="llm", help="llm 为云模型；rules 为无需密钥的有限中文语法基线")
+    parser.add_argument("--orchestration", choices=["legacy", "hierarchical"], help="显式选择两层架构；只覆盖本次进程，不改配置文件")
     parser.add_argument("--dashboard", action="store_true", help="同时启动只读规划面板（默认 http://127.0.0.1:8765）")
     parser.add_argument("--dashboard-port", type=int, default=8765, help="内置规划面板端口")
     return parser
@@ -85,10 +86,20 @@ def _parse_goal_arg(raw: str | None) -> dict[str, Any] | None:
 
 
 async def _run(args: argparse.Namespace, config: Any, goal_json: dict[str, Any] | None) -> int:
+    if config.orchestration.mode == "hierarchical" and (args.planner == "rules" or goal_json is not None):
+        raise ConfigError("hierarchical使用自然语言与llm；rules/--goal-json请显式选择legacy")
     logs = RuntimeLogs(config.runtime_dir)
     memory = ExperienceStore(config.runtime_dir / "memory.sqlite3")
     backend = ExecutorClient(config, logs)
-    planner = RulePlanner() if args.planner == "rules" else LLMPlanner(DeepSeekClient(config.model))
+    if config.orchestration.mode == "hierarchical":
+        if args.planner == "rules":
+            raise ConfigError("hierarchical不支持rules；显式legacy模式运行规则基线")
+        if goal_json is not None:
+            raise ConfigError("hierarchical不支持--goal-json，请用自然语言或legacy测试路径")
+        from sim_agent.agents.coordinator import AgentTeam
+        planner = AgentTeam(DeepSeekClient(config.model))
+    else:
+        planner = RulePlanner() if args.planner == "rules" else LLMPlanner(DeepSeekClient(config.model))
     service = AgentService(
         backend,
         planner,
@@ -122,7 +133,8 @@ async def _run(args: argparse.Namespace, config: Any, goal_json: dict[str, Any] 
                 return 2
             outcome = await service.run_single(args.task, goal_json)
             print("", flush=True)
-            print(outcome.message, flush=True)
+            if outcome.delivery_status != "submitted" or config.orchestration.mode != "hierarchical":
+                print(outcome.message, flush=True)
             print(
                 f"状态：{outcome.end_state}，步数：{len(outcome.steps)}，"
                 f"用时：{outcome.duration_seconds:.1f} 秒",
@@ -158,6 +170,11 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--goal-json 只能与 --task 一起使用")
     try:
         config = load_config(Path(args.config))
+        if args.orchestration:
+            from dataclasses import replace
+            config = replace(config, orchestration=replace(config.orchestration, mode=args.orchestration))
+            if args.orchestration == "hierarchical" and config.learning.mode != "B0":
+                raise ConfigError("hierarchical仅支持B0，请显式使用B0配置")
         goal_json = _parse_goal_arg(args.goal_json)
     except (ConfigError, ValidationError) as exc:
         print(f"配置错误：{exc}", file=sys.stderr)

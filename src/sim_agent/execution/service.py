@@ -53,6 +53,21 @@ class AgentService:
             notify=self._notify_progress,
             memory=memory,
         )
+        self._hierarchical = config.orchestration.mode == "hierarchical"
+        self._raw_chat = ""
+        self._entry_lock = asyncio.Lock()
+        if self._hierarchical:
+            from sim_agent.orchestration.task_runtime import TaskRuntime
+            from sim_agent.agents.coordinator import AgentTeam
+            if not isinstance(planner, AgentTeam):
+                raise ValueError("hierarchical需要AgentTeam，不允许静默回退旧Planner")
+            self._runner = TaskRuntime(backend, planner, config, logs, notify=self._notify_progress)
+            self._runner.terminal_emit = self._emit
+            pending = self._runner.pending()
+            if pending:
+                prior = pending[0]
+                self._task_text = prior["request"]["command_text"]
+                self._emit(f"发现未结束任务 {prior['root_task_id']}：{prior['status']}，请回答/继续/停止。")
 
     @property
     def sender(self) -> str:
@@ -102,6 +117,16 @@ class AgentService:
 
     # ------------------------------------------------------------------
     async def handle_chat(self, username: str, message: str) -> str:
+        authorized = isinstance(username,str) and username != self.sender and (
+            self._config.agent.owner == "*" or username == self._config.agent.owner)
+        if authorized and isinstance(message,str) and message.startswith(self._config.agent.prefix):
+            if message[len(self._config.agent.prefix):].strip().casefold() in _STOP_COMMANDS:
+                return await self._handle_chat(username,message)
+        # Serialize accepted control inputs, not the running task or model call.
+        async with self._entry_lock:
+            return await self._handle_chat(username, message)
+
+    async def _handle_chat(self, username: str, message: str) -> str:
         if not isinstance(username, str) or not isinstance(message, str):
             return "ignored"
         if username == self.sender:
@@ -120,10 +145,42 @@ class AgentService:
         if not message.startswith(prefix):
             return "ignored"
         command = message[len(prefix) :].strip()
+        self._raw_chat = message
         self._logs.trace({"type": "chat_command", "username": username, "message": command,
                           "task_id": self._runner.task_id if self._busy else None})
         if command.casefold() in _STOP_COMMANDS:
+            if self._hierarchical and not self._busy:
+                pending = self._runner.pending()
+                if pending:
+                    self._runner.discard_pending(pending[0]["root_task_id"])
+                    self._last_outcome = None
+                    await self._say("已取消等待中的任务。", quiet=False)
+                    return "cancelled"
             return await self.stop_current(source="chat")
+        if self._hierarchical:
+            pending = self._runner.pending() if not self._busy else []
+            if command.startswith("继续"):
+                if self._busy or not pending:
+                    await self._say("没有可恢复的中断任务。", quiet=False)
+                    return "idle"
+                requested = command[2:].strip()
+                prior = next((p for p in pending if not requested or p["root_task_id"] == requested), None)
+                if prior is None or prior["status"] != "interrupted":
+                    await self._say("请给出中断任务ID；等待澄清的任务请用回答。", quiet=False)
+                    return "idle"
+                self._busy = True
+                self._current = asyncio.create_task(self._resume_task(prior, username))
+                self._current.add_done_callback(self._consume_task_result)
+                return "started"
+            if command.startswith("回答") and pending and self._last_outcome is None:
+                from types import SimpleNamespace
+                p = pending[0]
+                self._last_outcome = SimpleNamespace(end_state="needs_clarification" if p["status"]=="waiting_input" else "interrupted",
+                    message=(p.get("question") or {}).get("text",p.get("last_message","")), goal=None,
+                    steps=[],final_observation=(p.get("state") or {}).get("final_observation"),root_task_id=p["root_task_id"])
+            if pending and not command.startswith(("回答", "纠正")):
+                await self._say("有未结束任务，请先回答、继续或停止。", quiet=False)
+                return "busy"
         clarification_context = None
         if command.startswith("回答"):
             answer = command[2:].strip(" ：:")
@@ -140,6 +197,8 @@ class AgentService:
                 "verified_steps": [s for s in self._last_outcome.steps if s["status"] == "succeeded"],
                 "last_observation": self._last_outcome.final_observation,
             }
+            if self._hierarchical:
+                clarification_context["previous_root_task_id"] = self._last_outcome.root_task_id
             command = answer
         if command.startswith("纠正"):
             correction = command[2:].strip(" ：:")
@@ -171,11 +230,16 @@ class AgentService:
 
         self._busy = True
         self._task_version += 1
+        if self._hierarchical and clarification_context is None and self._last_outcome is not None:
+            previous = self._last_outcome
+            clarification_context = {"session_previous_outcome": {
+                "task_id":previous.task_id,"task":previous.task_text,"end_state":previous.end_state,
+                "message":previous.message,"steps":previous.steps[-8:],"world_id":(previous.final_observation or {}).get("world_id")}}
         self._task_text = command
         self._last_outcome = None
         self._pending_stop = False
         self._current = asyncio.create_task(
-            self._chat_task(command, self._task_version, clarification_context, username), name="basic-agent-chat-task"
+            self._chat_task(command, self._task_version, clarification_context, username, message), name="basic-agent-chat-task"
         )
         self._current.add_done_callback(self._consume_task_result)
         return "started"
@@ -186,20 +250,22 @@ class AgentService:
         except (asyncio.CancelledError, Exception):
             pass
 
-    async def _chat_task(self, command: str, version: int = 1, continuation: dict | None = None, requester: str | None = None) -> None:
+    async def _chat_task(self, command: str, version: int = 1, continuation: dict | None = None, requester: str | None = None, raw_chat: str | None = None) -> None:
         try:
             if self._pending_stop:
                 self._pending_stop = False
                 await self._say("已取消任务。", quiet=False)
                 return
             try:
-                outcome = await self._runner.run(command, task_version=version, continuation_context=continuation, requested_by=requester)
+                extra = {"raw_chat": raw_chat} if self._hierarchical else {}
+                outcome = await self._runner.run(command, task_version=version, continuation_context=continuation, requested_by=requester, **extra)
                 self._last_outcome = outcome
             except Exception as exc:
                 self._emit(f"任务启动失败：{type(exc).__name__}: {exc}")
                 await self._say(f"任务启动失败：{type(exc).__name__}", quiet=False)
                 return
-            await self._say(outcome.message, quiet=False)
+            if not self._hierarchical or (outcome.delivery_status != "submitted" and version == self._task_version):
+                await self._say(outcome.message, quiet=False)
         finally:
             self._busy = False
             self._current = None
@@ -228,9 +294,11 @@ class AgentService:
             "last_observation": prior.final_observation if prior else None,
             "note": "Re-observe current state. Preserve completed work; do not repeat material consumption.",
         }
+        if self._hierarchical and prior:
+            continuation["previous_root_task_id"] = prior.root_task_id
         self._busy = True
         self._pending_stop = False
-        self._current = asyncio.create_task(self._chat_task(correction, version, continuation, requester))
+        self._current = asyncio.create_task(self._chat_task(correction, version, continuation, requester, self._raw_chat))
         self._current.add_done_callback(self._consume_task_result)
 
     async def stop_current(self, *, source: str = "chat") -> str:
@@ -247,6 +315,16 @@ class AgentService:
             await self._say("正在停止当前任务。", quiet=False)
         return "cancelled"
 
+    async def _resume_task(self, prior, requester):
+        try:
+            self._last_outcome = await self._runner.run(prior["request"]["command_text"],
+                requested_by=requester, resume_root=prior["root_task_id"])
+            if self._last_outcome.delivery_status != "submitted":
+                await self._say(self._last_outcome.message, quiet=False)
+        finally:
+            self._busy = False
+            self._current = None
+
     # ------------------------------------------------------------------
     async def run_single(
         self, task_text: str, goal_json: dict[str, Any] | None = None
@@ -258,6 +336,7 @@ class AgentService:
             self._single_monitor(), name="basic-agent-disconnect-monitor"
         )
         try:
+            if self._hierarchical: self._runner.delivery_channel = "cli"
             outcome = await self._runner.run(task_text, goal_json)
             return outcome
         finally:
@@ -277,7 +356,7 @@ class AgentService:
             if event_name == "disconnect":
                 self._disconnected = True
                 if self._runner.active:
-                    await self._runner.cancel("执行器连接断开")
+                    await (self._runner.interrupt("执行器连接断开") if self._hierarchical else self._runner.cancel("执行器连接断开"))
                 return
             if event_name == "chat":
                 data = event.get("data") if isinstance(event, dict) else None
@@ -321,7 +400,7 @@ class AgentService:
                     + (f"（{reason}）" if isinstance(reason, str) and reason else "")
                 )
                 if self._busy:
-                    await self._runner.cancel("执行器连接断开")
+                    await (self._runner.interrupt("执行器连接断开") if self._hierarchical else self._runner.cancel("执行器连接断开"))
                 break
             if name == "error":
                 self._emit("执行器错误事件：" + str(data.get("message", ""))[:160])
@@ -339,7 +418,7 @@ class AgentService:
     async def shutdown(self) -> None:
         self._task_version += 1
         if self._busy or self._runner.active:
-            await self._runner.cancel("代理关闭")
+            await (self._runner.interrupt("代理关闭") if self._hierarchical else self._runner.cancel("代理关闭"))
         task = self._current
         if task is not None and not task.done():
             try:
@@ -347,6 +426,8 @@ class AgentService:
             except (asyncio.TimeoutError, asyncio.CancelledError):
                 pass
         await self._backend.shutdown()
+        if self._hierarchical:
+            self._runner.store.close()
         if self._revision_task and not self._revision_task.done():
             self._revision_task.cancel()
             await asyncio.gather(self._revision_task, return_exceptions=True)
