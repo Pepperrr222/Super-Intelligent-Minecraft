@@ -59,6 +59,8 @@ class TaskRuntime(ExecutionController):
         self._finalizing = False
         self._stage_clock = None
         self._interrupted = False
+        self._worker_job=None
+        self._stage_stop_requested=False
 
     @property
     def active(self): return self._active
@@ -69,6 +71,13 @@ class TaskRuntime(ExecutionController):
     async def interrupt(self,reason):
         if self._cancel_event is None or not self._cancel_event.is_set(): self._interrupted=True
         return await self.cancel(reason)
+
+    async def stop_stage(self):
+        job=self._worker_job
+        if not self.active or job is None or job.done(): return False
+        self._stage_stop_requested=True
+        job.cancel()
+        return True
 
     def pending(self):
         return [s for s in self.store.recent() if s["status"] in {"waiting_input", "interrupted"}]
@@ -194,6 +203,8 @@ class TaskRuntime(ExecutionController):
                "capabilities":self.snap.get("capabilities",{}), "purpose":purpose,
                "previous_error":self.snap.get("last_error"), "report":self.snap.get("report")}
         ctx["delivery_channel"]=self.delivery_channel
+        ctx["verification_status"]={"root_ready":bool(self.snap.get("contract") and TaskContract(self.snap["contract"]).checks_ready),
+                                    "stage_ready":bool(self.stage and self.stage.get("acceptance_checks"))}
         if self.snap.get("last_invalid_output") and self.snap.get("last_invalid_role")==role:
             ctx["previous_invalid_decision_for_repair"] = self.snap["last_invalid_output"][:12000]
         ctx["settled_actions"]=[{k:a.get(k) for k in ("action_id","op","args","result","status","stage_id")}
@@ -240,7 +251,7 @@ class TaskRuntime(ExecutionController):
             if version!=self.snap["task_version"] or task_id!=self._task_id: raise TaskCancelled("过期模型输出")
             usage=result.usage
             self.snap["inflight_model_seconds"]=0
-            self.state.record_usage(step_index=self.budget.calls,model=result.model,usage=usage,latency_ms=0,
+            self.state.record_usage(step_index=meta["step"],model=result.model,usage=usage,latency_ms=0,
                                     model_call=getattr(self.team,"is_real_model",True))
             end="completed"
             self._save("model_completed", {"role":role,"call_id":call_id,"usage":usage,"model":result.model,
@@ -348,7 +359,6 @@ class TaskRuntime(ExecutionController):
         drafts=list_value(payload["deliverables"],"deliverables",maximum=16)
         stage_checks=list_value(payload["stage_checks"],"stage_checks",maximum=16)
         if contract is None and drafts: raise ValidationError("调查阶段不能自行建立根任务约定")
-        if contract and contract.checks_ready and drafts: raise ValidationError("根验收已冻结，不可替换")
         compiled={}
         ids=contract.requirement_ids if contract else set()
         for draft in drafts:
@@ -357,13 +367,19 @@ class TaskRuntime(ExecutionController):
             checks=parse_checks(draft["acceptance_checks"],ids)
             if any(c.get("scope")=="stage" for c in checks): raise ValidationError("根交付不能使用阶段基线")
             compiled[draft["id"]]=checks
+        if contract and contract.checks_ready and drafts:
+            existing={d["id"]:d["acceptance_checks"] for d in contract.data["deliverables"]}
+            if compiled!=existing: raise ValidationError("根验收已冻结，不可替换")
+            compiled={}
         if contract and not contract.checks_ready:
             if self.snap.get("mutations_started"): raise ValidationError("动作之后不可补造根验收")
             if set(compiled)!={d["id"] for d in contract.data["deliverables"]}:
                 raise ValidationError("必须编译全部根交付，不可遗漏需求")
         if stage_checks:
-            if self.stage["acceptance_checks"]: raise ValidationError("阶段验收已冻结，不可替换")
             stage_checks=parse_checks(stage_checks,ids)
+            if self.stage["acceptance_checks"]:
+                if stage_checks!=self.stage["acceptance_checks"]: raise ValidationError("阶段验收已冻结，不可替换")
+                stage_checks=[]
             if any(c["kind"] in {"grounded_report","delivery_submission"} for c in stage_checks):
                 raise ValidationError("Worker阶段不能以聊天代替结果")
         elif not self.stage.get("information_only") and not self.stage["acceptance_checks"]:
@@ -383,11 +399,32 @@ class TaskRuntime(ExecutionController):
 
     async def _worker(self, stage):
         try:
-            await self._run_worker(stage)
+            self._stage_stop_requested=False
+            self._worker_job=asyncio.create_task(self._run_worker(stage),name="stage-worker")
+            await self._worker_job
+        except asyncio.CancelledError:
+            if not self._stage_stop_requested or self._cancel_event.is_set(): raise
+            self._cleanup=True
+            try:
+                await self._stop_once()
+                await self._capture_interrupted_action(self.state)
+                for record in self.store.actions(self.snap["root_task_id"]):
+                    if record.get("status") in {"acknowledged","submitting","unknown"}:
+                        if not record.get("action_id"): raise RuntimeHalt("interrupted","子任务停止后动作结果未知，请核对后恢复")
+                        result=await self._request("action_status",{"action_id":record["action_id"]},self.deadline,self._cancel_event)
+                        if result.get("status") not in {"succeeded","failed","cancelled"}:
+                            raise RuntimeHalt("interrupted","子任务停止尚未确认，未派发新动作")
+                stage["status"]="blocked"; stage["block_reason"]="玩家终止当前子任务，请基于已有事实重新决策，不要自动重派相同任务"
+                self.snap["last_error"]=stage["block_reason"]
+                self._save("stage_cancelled",{"stage":stage})
+            finally:
+                self._cleanup=False
+                if not self._cancel_event.is_set(): self._stop_sent=False; self._stop_action_id=None
         except ValidationError as e:
             stage["status"]="blocked"; stage["block_reason"]=str(e)
             self.snap["last_error"]=str(e)
         finally:
+            self._worker_job=None
             if self.stage is not None:
                 if self._stage_clock is not None:
                     stage["spent_seconds"]=stage.get("spent_seconds",0)+time.monotonic()-self._stage_clock
@@ -420,6 +457,8 @@ class TaskRuntime(ExecutionController):
                     raw=await self._model("worker","complete_stage")
                     proposal=parse_proposal(raw,"worker")
                     self._save("proposal", {"role":"worker","proposal":proposal})
+                    if proposal["kind"] in {"query","act"} and "verification" in proposal["payload"]:
+                        await self._prepare_verification(proposal["payload"]["verification"],scoped)
                     if proposal["kind"] in {"query","act"}:
                         if stage.get("information_only") and proposal["kind"] == "act":
                             raise ValidationError("信息子任务不能执行变更动作")
@@ -433,9 +472,11 @@ class TaskRuntime(ExecutionController):
                             self.snap["last_error"]=stage["block_reason"]
                             return
                         failures=0
+                        self.snap["last_error"]=None; self.snap["last_invalid_output"]=None
                     elif proposal["kind"]=="prepare_verification":
                         await self._prepare_verification(proposal["payload"],scoped)
                         failures=0
+                        self.snap["last_error"]=None; self.snap["last_invalid_output"]=None
                     elif proposal["kind"]=="submit_result":
                         p=proposal["payload"]
                         refs(p["evidence_ids"],"evidence_ids",[e["id"] for e in self.snap["evidence"]])
@@ -511,7 +552,23 @@ class TaskRuntime(ExecutionController):
 
     async def _coordinator_step(self, proposal):
         kind,p=proposal["kind"],proposal["payload"]
-        if kind=="propose_contract": await self._accept_contract(p["contract_draft"])
+        if kind=="answer":
+            if self.snap.get("contract") or self.snap.get("mutations_started"):
+                raise ValidationError("已有动作任务不能通过answer绕过实际验收")
+            text=self.snap["request"]["command_text"]
+            await self._accept_contract({"intent_summary":text,"requirements":[{"id":"r1","text":text,"source_refs":[text]}],
+                "constraints":{},"deliverables":[{"id":"answer","description":"回答玩家问题","requirement_ids":["r1"],
+                "acceptance_checks":[{"kind":"grounded_report","required_topics":[text],"permitted_evidence_kinds":["observe","find_blocks","recipes","inspect_container","action","task_history"]},
+                {"kind":"delivery_submission","channel":self.delivery_channel}]}]})
+            await self._report({"report":p["report"],"requirement_ids":["r1"]})
+        elif kind=="delegate":
+            if p.get("contract_draft"): await self._accept_contract(p["contract_draft"])
+            stage=p["stage"]
+            retained=[{k:v for k,v in s.items() if k in {"id","title","objective","requirement_ids","dependencies","mode","completion_criteria","input_evidence_ids","expected_outputs","budget"}}
+                      for s in self.snap["stages"] if s.get("status")=="succeeded"]
+            await self._coordinator_step({"kind":"propose_plan","payload":{"stages":retained+[stage],"change_reason":proposal["summary"],"based_on_evidence_ids":stage.get("input_evidence_ids",[])}})
+            await self._coordinator_step({"kind":"dispatch","payload":{"stage_id":stage["id"]}})
+        elif kind=="propose_contract": await self._accept_contract(p["contract_draft"])
         elif kind=="request_information":
             requested=refs(p["requested_capabilities"],"requested_capabilities",READ_ONLY,1) if "requested_capabilities" in p else sorted(READ_ONLY & self.snap["capabilities"].keys())
             refs(p["evidence_refs"],"evidence_refs",[e["id"] for e in self.snap["evidence"]])

@@ -45,7 +45,7 @@ python scripts/dev.py run --config config.json --orchestration hierarchical --da
 
 ## 游戏内使用
 
-agent.owner 设为游戏用户名时只接受该玩家；设为 "*" 时接受所有玩家，适合小组共同测试。每次只运行一个任务。
+agent.owner 设为游戏用户名时只接受该玩家；设为 "*" 时接受所有玩家，适合小组共同测试。同一时刻只有一个任务控制 Bot，但执行期间可以继续发送问题和新命令，由 Coordinator 决定回答、排队、替换或暂停。详见 [持续消息说明](docs/implementation/RUNNING.md)。
 
 ```text
 !agent 描述你所处的环境

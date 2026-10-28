@@ -125,7 +125,9 @@ class BusinessRuntimeTests(unittest.IsolatedAsyncioTestCase):
         checks=fixtures.contract(task)["deliverables"][0]["acceptance_checks"]
         prepare=p("worker","prepare_verification",deliverables=[{"id":"d1","acceptance_checks":checks}],
             stage_checks=[{"kind":"evidence_requirement","evidence_kind":"observe","selectors":[],"requirement_ids":["r1"]}])
-        team=BusinessTeam(self.plan(task)+[p("coordinator","cannot_complete",reason_code="blocked",explanation="不能改写验收",unmet_requirements=["r1"])],[prepare,prepare,prepare])
+        changed=copy.deepcopy(prepare)
+        changed['payload']['deliverables'][0]['acceptance_checks'][0]['required_topics']=['不同的结果']
+        team=BusinessTeam(self.plan(task)+[p("coordinator","cannot_complete",reason_code="blocked",explanation="不能改写验收",unmet_requirements=["r1"])],[prepare,changed,changed])
         outcome=await self.create(team).run(task)
         self.assertEqual(outcome.end_state,"failed")
         self.assertIn("冻结",self.runtime.snap["stages"][0]["block_reason"])

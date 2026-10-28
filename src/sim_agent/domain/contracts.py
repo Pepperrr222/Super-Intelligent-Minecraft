@@ -260,17 +260,31 @@ COORDINATOR_FIELDS = {
     "cannot_complete": ({"reason_code", "explanation", "unmet_requirements"}, set()),
 }
 BUSINESS_COORDINATOR_FIELDS = {**COORDINATOR_FIELDS,
-    "request_information": ({"question", "evidence_refs"}, set())}
+    "request_information": ({"question", "evidence_refs"}, set()),
+    "delegate": ({"stage"}, {"contract_draft"}),
+    "answer": ({"report"}, set()),
+}
+CONTROL_FIELDS = {
+    "reply": ({"text","evidence_refs"}, set()),
+    "clarify": ({"text"}, set()),
+    "queue": (set(), set()),
+    "replace": (set(), set()),
+    "correct": (set(), set()),
+    "pause": (set(), set()),
+    "resume": (set(), set()),
+    "cancel_stage": (set(), set()),
+    "end": (set(), set()),
+}
 WORKER_FIELDS = {
     "prepare_verification": ({"deliverables", "stage_checks"}, set()),
-    "query": ({"op", "args", "purpose"}, set()),
-    "act": ({"kind", "args", "purpose"}, set()),
+    "query": ({"op", "args", "purpose"}, {"verification"}),
+    "act": ({"kind", "args", "purpose"}, {"verification"}),
     "submit_result": ({"summary", "output_refs", "evidence_ids", "unresolved_items"}, set()),
     "blocked": ({"category", "explanation", "attempted_evidence_ids", "needed_information"}, set()),
 }
 
 
-def parse_proposal(raw_text, role, *, business=False):
+def parse_proposal(raw_text, role, *, business=False, control=False):
     if not isinstance(raw_text,str) or len(raw_text)>200_000:
         raise ValidationError("提议输出为空或过长")
     try:
@@ -283,6 +297,9 @@ def parse_proposal(raw_text, role, *, business=False):
     if d["schema_version"] != role + "-proposal.v1": raise ValidationError("提议版本不匹配")
     if role not in {"coordinator", "worker"}: raise ValidationError("未知模型角色")
     fields = (BUSINESS_COORDINATOR_FIELDS if business else COORDINATOR_FIELDS) if role == "coordinator" else WORKER_FIELDS
+    if control:
+        if role!="coordinator": raise ValidationError("只有Coordinator可调度玩家消息")
+        fields=CONTROL_FIELDS
     if not isinstance(d["kind"],str) or d["kind"] not in fields: raise ValidationError("此角色不允许该提议")
     required, optional = fields[d["kind"]]
     object_value(d["payload"], "payload", required, optional)
@@ -293,7 +310,7 @@ def parse_proposal(raw_text, role, *, business=False):
             for deliverable in list_value(p["contract_draft"].get("deliverables"), "deliverables", minimum=1):
                 if "acceptance_checks" in deliverable or "completion_criteria" not in deliverable:
                     raise ValidationError("Coordinator只描述completion_criteria，底层验收由Worker编译")
-        for stage in p.get("stages", []):
+        for stage in p.get("stages", []) + ([p["stage"]] if "stage" in p else []):
             if "allowed_capabilities" in stage or "acceptance_checks" in stage or "completion_criteria" not in stage:
                 raise ValidationError("Coordinator阶段只描述目标、mode和completion_criteria，不指定工具或底层检查")
     return d

@@ -1,6 +1,6 @@
 # 规划与执行面板
 
-两层模式新增任务约定、实际阶段依赖和状态、计划修订原因、预算、完整报告与交付回执。模型选择器区分Coordinator/Worker/Reviewer及stage_id；旧调用明确为Legacy。离线脚本演示标记SCRIPTED_MOCK_ONLY，不能当真实模型或游戏验证。入口与当前验证范围见[运行说明](implementation/RUNNING.md)。
+两层模式新增任务约定、实际阶段依赖和状态、计划修订原因、预算、完整报告与交付回执。模型选择器区分Coordinator/Worker及stage_id；历史Reviewer仅供回看，消息调度调用另行标注；旧调用明确为Legacy。离线脚本演示标记SCRIPTED_MOCK_ONLY，不能当真实模型或游戏验证。入口与当前验证范围见[运行说明](implementation/RUNNING.md)。
 
 面板展示上层模型接口实际提供的思考文本、最终决策输出，以及当前目标与约束、世界观察、执行反馈、重规划、最终验证和用量。思考区读取 reasoning_content 原文，不调用另一个模型总结，也不补写未提供的内容。思考和最终决策互相隔离；程序不会把思考文本当作动作或成功依据。
 

@@ -56,6 +56,7 @@ class AgentService:
         self._hierarchical = config.orchestration.mode == "hierarchical"
         self._raw_chat = ""
         self._entry_lock = asyncio.Lock()
+        self._inbox = None
         if self._hierarchical:
             from sim_agent.orchestration.task_runtime import TaskRuntime
             from sim_agent.agents.coordinator import AgentTeam
@@ -63,6 +64,9 @@ class AgentService:
                 raise ValueError("hierarchical需要AgentTeam，不允许静默回退旧Planner")
             self._runner = TaskRuntime(backend, planner, config, logs, notify=self._notify_progress)
             self._runner.terminal_emit = self._emit
+            if getattr(planner,"protocol_version",None)=="business.v2":
+                from sim_agent.orchestration.player_inbox import PlayerInbox
+                self._inbox=PlayerInbox(self,planner)
             pending = self._runner.pending()
             if pending:
                 prior = pending[0]
@@ -121,7 +125,13 @@ class AgentService:
             self._config.agent.owner == "*" or username == self._config.agent.owner)
         if authorized and isinstance(message,str) and message.startswith(self._config.agent.prefix):
             if message[len(self._config.agent.prefix):].strip().casefold() in _STOP_COMMANDS:
+                if self._inbox: self._inbox.invalidate()
                 return await self._handle_chat(username,message)
+            command=message[len(self._config.agent.prefix):].strip()
+            if self._inbox and command and (self._busy or self._runner.pending()) and not command.startswith(("回答","纠正","继续")):
+                self._logs.trace({"type":"player_message_received","task_id":self._runner.task_id,
+                                  "username":username,"message":command})
+                return self._inbox.submit(username,message,command)
         # Serialize accepted control inputs, not the running task or model call.
         async with self._entry_lock:
             return await self._handle_chat(username, message)
@@ -250,6 +260,13 @@ class AgentService:
         except (asyncio.CancelledError, Exception):
             pass
 
+    def _launch_chat(self, command, requester, raw_chat):
+        if self._busy or self._disconnected: raise ValueError("身体仍被占用或已断线")
+        self._busy=True; self._task_version+=1; self._task_text=command
+        self._last_outcome=None; self._pending_stop=False
+        self._current=asyncio.create_task(self._chat_task(command,self._task_version,None,requester,raw_chat))
+        self._current.add_done_callback(self._consume_task_result)
+
     async def _chat_task(self, command: str, version: int = 1, continuation: dict | None = None, requester: str | None = None, raw_chat: str | None = None) -> None:
         try:
             if self._pending_stop:
@@ -269,8 +286,9 @@ class AgentService:
         finally:
             self._busy = False
             self._current = None
+            if self._inbox: self._inbox.start_next()
 
-    async def _correct_task(self, correction: str, version: int, requester: str | None = None) -> None:
+    async def _correct_task(self, correction: str, version: int, requester: str | None = None, raw_chat: str | None = None) -> None:
         current = self._current
         original = self._task_text
         await self._runner.cancel("玩家纠正任务")
@@ -298,10 +316,11 @@ class AgentService:
             continuation["previous_root_task_id"] = prior.root_task_id
         self._busy = True
         self._pending_stop = False
-        self._current = asyncio.create_task(self._chat_task(correction, version, continuation, requester, self._raw_chat))
+        self._current = asyncio.create_task(self._chat_task(correction, version, continuation, requester, raw_chat or self._raw_chat))
         self._current.add_done_callback(self._consume_task_result)
 
     async def stop_current(self, *, source: str = "chat") -> str:
+        if self._inbox: self._inbox.invalidate()
         self._task_version += 1
         if not self._busy:
             if source == "chat":
@@ -324,6 +343,7 @@ class AgentService:
         finally:
             self._busy = False
             self._current = None
+            if self._inbox: self._inbox.start_next()
 
     # ------------------------------------------------------------------
     async def run_single(
@@ -394,6 +414,7 @@ class AgentService:
                 continue
             if name == "disconnect":
                 self._disconnected = True
+                if self._inbox: self._inbox.invalidate()
                 reason = data.get("reason")
                 self._emit(
                     "执行器连接断开，取消当前任务。"
@@ -417,6 +438,7 @@ class AgentService:
 
     async def shutdown(self) -> None:
         self._task_version += 1
+        if self._inbox: await self._inbox.close()
         if self._busy or self._runner.active:
             await (self._runner.interrupt("代理关闭") if self._hierarchical else self._runner.cancel("代理关闭"))
         task = self._current

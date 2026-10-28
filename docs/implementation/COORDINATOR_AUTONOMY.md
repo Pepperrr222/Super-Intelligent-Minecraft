@@ -50,3 +50,14 @@ Worker 新提议 `prepare_verification`：
 离线演示：`python -B -m sim_agent.app.hierarchical_demo --output runtime/coordinator-autonomy-demo`（需 PYTHONPATH=src）。它运行真实调度、编译、控制和验证代码，但模型与游戏均为脚本/Mock，不能作为自然语言实机验收。
 
 人工复验重点：原话是否保留；最高层是否用业务阶段而不是工具参数；缺少交付方式是否澄清；Worker 是否从调查推进到动作；取消是否立即响应；失败后是否保留真实进展。暂停和修订的旧任务如含旧语义检查，先停止再重新发出剩余任务，避免混用旧验收。
+
+## 持续消息与短流程修订
+
+- execution/service.py 过滤身份和前缀，orchestration/player_inbox.py 提供独立事件消息通道。Worker 执行期间，Coordinator 可处理新消息。
+- 调度使用 coordinator-proposal.v1，purpose=player_message，kind 为 reply / clarify / queue / replace / correct / pause / resume / cancel_stage / end。queue、replace、correct 保留接收时的原文和发起人，不使用模型改写的命令。
+- reply 引用已有事实，不修改任务；只有一个根任务控制身体。replace/correct 等待停稳，未知动作阻止自动替换。pause 保留同根进度；cancel_stage 只停止子任务，保留效果并交回根决策。
+- 停止、断线和关闭使调度失效；版本、任务对象与子任务 attempt 检查防止迟到结果作用于新任务。消息队列有界，目前不持久化。
+- Coordinator 新增 answer {report}：已有事实上的问答只需一次高层调用，程序检查报告引用和回执；不能在已有动作任务上借此跳过世界验收。
+- Coordinator 新增 delegate {contract_draft?,stage}：建立业务意图并立即派发单阶段 Worker。
+- Worker query/act 可附 verification:{deliverables,stage_checks}，同次调用准备后执行。相同验收重复提交幂等确认，实际改写仍拒绝；成功动作或编译后清除旧修复上下文。
+- 不增加寻路、搭建或玩家拾取验证等底层能力，不可达环境仍需真实反馈和玩家协助。
