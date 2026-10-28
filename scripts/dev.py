@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import os
 from pathlib import Path
-import shutil
 import subprocess
 import sys
 
@@ -18,14 +17,21 @@ def main():
     env = os.environ.copy()
     env["PYTHONPATH"] = str(ROOT / "src") + os.pathsep + env.get("PYTHONPATH", "")
     env["PYTHONIOENCODING"] = "utf-8"
+    if args.command in {"check", "test"}:
+        sys.path.insert(0, str(ROOT / "src"))
+        from sim_agent.app.config import load_config
+        from sim_agent.adapters.node_runtime import resolve_node
+        from sim_agent.domain.errors import AgentError
+        try:
+            config = load_config(ROOT / ("config.json" if (ROOT / "config.json").exists() else "config.example.json"))
+            node = resolve_node(config.node_executable)
+        except AgentError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
     if args.command == "check":
         print(f"Python: {sys.version.split()[0]}")
         if sys.version_info < (3, 12):
             print("Python 3.12+ required")
-            return 1
-        node = shutil.which("node")
-        if not node:
-            print("Node.js missing; install Node.js 22+")
             return 1
         version = subprocess.check_output([node, "--version"], text=True).strip()
         print(f"Node: {version}")
@@ -39,10 +45,6 @@ def main():
         if extra:
             parser.error("test takes no extra arguments")
         py = subprocess.run([sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v"], env=env)
-        node = shutil.which("node")
-        if not node:
-            print("Node.js missing", file=sys.stderr)
-            return 1
         tests = sorted(str(p.relative_to(ROOT)) for p in (ROOT / "executor/test").glob("*.test.js"))
         js = subprocess.run([node, "--test", *tests], env=env)
         return 0 if py.returncode == js.returncode == 0 else 1

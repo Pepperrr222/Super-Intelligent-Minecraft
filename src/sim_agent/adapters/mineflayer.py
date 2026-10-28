@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from sim_agent.app.config import AppConfig
+from sim_agent.adapters.node_runtime import resolve_node
 from sim_agent.domain.errors import ExecutorError, TransportError, TransportTimeout
 from sim_agent.observability.jsonl import NullLogs, RuntimeLogs
 
@@ -51,7 +52,7 @@ class ExecutorClient:
         config: AppConfig,
         logs: RuntimeLogs | NullLogs | None = None,
         *,
-        node_executable: str = "node",
+        node_executable: str | None = None,
         server_script: str | Path | None = None,
         request_timeout: float = 10.0,
         startup_timeout: float = 30.0,
@@ -59,7 +60,7 @@ class ExecutorClient:
         self._config = config
         self._config_path = config.config_path
         self._logs = logs or NullLogs()
-        self._node = node_executable
+        self._node = node_executable or config.node_executable
         if server_script is not None:
             self._server_script = Path(server_script)
         else:
@@ -109,6 +110,7 @@ class ExecutorClient:
 
         if not self._server_script.exists():
             raise TransportError(f"找不到执行器脚本: {self._server_script}")
+        node = resolve_node(self._node)
 
         loop = asyncio.get_running_loop()
         self._ready_future = loop.create_future()
@@ -116,7 +118,7 @@ class ExecutorClient:
         self._closed = False
         try:
             self._proc = await asyncio.create_subprocess_exec(
-                self._node,
+                node,
                 str(self._server_script),
                 "--config",
                 str(self._config_path),
@@ -128,7 +130,7 @@ class ExecutorClient:
             )
         except (OSError, ValueError) as exc:
             self._ready_future = None
-            raise TransportError("无法启动执行器子进程") from exc
+            raise TransportError(f"无法启动执行器子进程（{type(exc).__name__}）；请检查 Node 路径及执行权限") from exc
 
         self._reader_task = asyncio.create_task(
             self._reader_loop(), name="executor-stdout"

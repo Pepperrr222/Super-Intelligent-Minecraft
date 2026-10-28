@@ -61,6 +61,7 @@ class AppConfig:
     config_path: Path
     raw: dict[str, Any]
     learning: LearningConfig = field(default_factory=LearningConfig)
+    node_executable: str | None = None
 
 
 def _section(root: dict[str, Any], name: str) -> dict[str, Any]:
@@ -116,6 +117,16 @@ def load_config(path: str | Path) -> AppConfig:
         raise ConfigError(f"配置文件不是有效 JSON（第 {exc.lineno} 行）") from exc
     if not isinstance(root, dict):
         raise ConfigError("配置文件根节点必须是对象")
+
+    node_executable = root.get("node_executable")
+    if node_executable is not None:
+        if not isinstance(node_executable, str) or not node_executable.strip() or len(node_executable) > 4096:
+            raise ConfigError("node_executable 必须是 Node 可执行文件路径或命令名")
+        if "/" in node_executable or "\\" in node_executable:
+            node_path = Path(node_executable).expanduser()
+            if not node_path.is_absolute():
+                node_path = config_path.parent / node_path
+            node_executable = str(node_path.resolve())
 
     mc_raw = _section(root, "minecraft")
     agent_raw = _section(root, "agent")
@@ -206,4 +217,5 @@ def load_config(path: str | Path) -> AppConfig:
         config_path=config_path,
         raw=root,
         learning=LearningConfig(mode, ruleset_id, max_retrieved),
+        node_executable=node_executable,
     )

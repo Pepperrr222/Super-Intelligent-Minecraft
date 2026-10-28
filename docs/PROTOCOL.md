@@ -77,6 +77,8 @@ End states: completed, failed, cancelled, needs_clarification, exhausted. Same f
 
 Root config schema is illustrated in config.example.json. The Node child only retains the minecraft section; current executor accepts offline authentication only. Python resolves model.key_file and runtime_dir relative to the config file. Secrets are never embedded in public config.
 
+Optional root `node_executable` selects a local Node binary or command; paths containing a directory resolve relative to the config file. Otherwise Python checks SIM_NODE and then PATH. This setting is local and is not passed as a game capability.
+
 Model settings optionally include provider (generic/deepseek/siliconflow), thinking (boolean), and max_tokens (128..8192). Vendor thinking flags are translated only for the chosen provider. HTTP redirects and truncated model output are rejected; credentials remain local. See MODELS.md for examples.
 
 learning.mode supports B0/B1. B0 saves evidence without retrieving it. B1 retrieves at most three matching episodes; these are historical advice and do not bypass current action checks. ruleset_id is manually maintained, not automatically discovered.

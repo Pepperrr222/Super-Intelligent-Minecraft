@@ -16,6 +16,8 @@ python scripts/dev.py demo
 
 Windows 激活命令为 `.venv\Scripts\Activate.ps1`，Linux 为 `source .venv/bin/activate`。未激活时也可直接使用虚拟环境 Python 的绝对路径运行 `scripts/dev.py`。
 
+若普通终端无法找到 Node，可在本机配置 JSON 顶层增加 `"node_executable": "C:/实际安装目录/node.exe"`。带目录的相对路径以配置文件目录为基准；也支持 `SIM_NODE` 环境变量。优先级为显式运行器参数、本机配置、SIM_NODE、PATH 中的 node，开发检查与测试同样支持本机配置。不要提交个人安装路径。
+
 ## 配置
 
 复制根目录 config.example.json 为 config.json。修改 agent.owner 为游戏内用户名，model.name 为实际账户可用的模型 ID。API 需要支持 `/chat/completions` 与 JSON object 输出。模型、价格和调用结果必须以自己的实际账号验证，模板不预填未经验证的型号。
