@@ -1,0 +1,508 @@
+{
+  "date_asia_shanghai": "2026-10-28",
+  "status": "passed",
+  "run_id": "20261028T010156234469Z",
+  "environment": "LIVE_VANILLA_1.21.1",
+  "cloud_llm_tested": true,
+  "rules_fallback": false,
+  "model_parameters_fixed": true,
+  "learning_improvement_measured": false,
+  "providers": [
+    {
+      "provider": "deepseek",
+      "model": "deepseek-flash",
+      "thinking": false,
+      "mode": "B0",
+      "cases": [
+        {
+          "id": "navigation",
+          "task": "请走到 x=1、y=-60、z=2 的位置，距离不超过一格。到达后结束任务。",
+          "passed": true,
+          "end_state": "completed",
+          "goal": {
+            "type": "near_position",
+            "position": {
+              "x": 1.0,
+              "y": -60.0,
+              "z": 2.0
+            },
+            "range": 1
+          },
+          "usage": {
+            "calls": 2,
+            "model_calls": 2,
+            "prompt_tokens": 4851,
+            "completion_tokens": 138,
+            "total_tokens": 4989
+          },
+          "duration_seconds": 2.094,
+          "external_evidence": {
+            "distance": 0.848,
+            "position": {
+              "x": 0.5,
+              "y": -60,
+              "z": 1.315
+            }
+          }
+        },
+        {
+          "id": "constrained_delivery",
+          "task": "只用坐标(0,-60,-4)箱子里的两根橡木原木，做成八块橡木木板，存进坐标(8,-60,0)的箱子。目标箱要比现在新增8块，不准砍树，也不要动背包里原有的三块木板。",
+          "passed": true,
+          "end_state": "completed",
+          "goal": {
+            "type": "all_of",
+            "goals": [
+              {
+                "type": "container_delta",
+                "item": "minecraft:oak_planks",
+                "delta": 8,
+                "position": {
+                  "x": 8.0,
+                  "y": -60.0,
+                  "z": 0.0
+                }
+              },
+              {
+                "type": "inventory_delta",
+                "item": "minecraft:oak_planks",
+                "delta": 0
+              }
+            ]
+          },
+          "usage": {
+            "calls": 5,
+            "model_calls": 5,
+            "prompt_tokens": 21318,
+            "completion_tokens": 477,
+            "total_tokens": 21795
+          },
+          "duration_seconds": 9.235,
+          "external_evidence": {
+            "source_log_delta": -2,
+            "target_plank_delta": 8,
+            "initial_player_planks": 3,
+            "final_player_planks": 3,
+            "player_log_delta": 0
+          }
+        },
+        {
+          "id": "reserved_materials",
+          "task": "请保留三块橡木木板，用附近原木额外制作四根木棍。可以采集，但不能消耗那三块保留木板。材料不够时先补料。",
+          "passed": true,
+          "end_state": "completed",
+          "goal": {
+            "type": "all_of",
+            "goals": [
+              {
+                "type": "inventory_increase",
+                "item": "minecraft:stick",
+                "count": 4
+              },
+              {
+                "type": "inventory_at_least",
+                "item": "minecraft:oak_planks",
+                "count": 3
+              }
+            ]
+          },
+          "usage": {
+            "calls": 5,
+            "model_calls": 5,
+            "prompt_tokens": 20088,
+            "completion_tokens": 375,
+            "total_tokens": 20463
+          },
+          "duration_seconds": 15.125,
+          "external_evidence": {
+            "stick_delta": 4,
+            "final_planks": 5,
+            "minimum_observed_planks": 3
+          }
+        },
+        {
+          "id": "ambiguous_reference",
+          "task": "把那些东西放到那个箱子里。",
+          "passed": true,
+          "end_state": "needs_clarification",
+          "goal": null,
+          "usage": {
+            "calls": 1,
+            "model_calls": 1,
+            "prompt_tokens": 1661,
+            "completion_tokens": 49,
+            "total_tokens": 1710
+          },
+          "duration_seconds": 0.718,
+          "external_evidence": {
+            "mutation_count": 0,
+            "message": "需要澄清：请说明“那些东西”具体指哪些物品（名称和数量），以及“那个箱子”的坐标。"
+          }
+        }
+      ],
+      "status": "passed",
+      "api_attempts": 13,
+      "api_errors": 0,
+      "usage": {
+        "prompt_tokens": 47918,
+        "completion_tokens": 1039,
+        "total_tokens": 48957
+      },
+      "usage_incomplete": false
+    },
+    {
+      "provider": "siliconflow",
+      "model": "deepseek-ai/DeepSeek-V3.2",
+      "thinking": false,
+      "mode": "B0",
+      "cases": [
+        {
+          "id": "navigation",
+          "task": "请走到 x=1、y=-60、z=2 的位置，距离不超过一格。到达后结束任务。",
+          "passed": true,
+          "end_state": "completed",
+          "goal": {
+            "type": "near_position",
+            "position": {
+              "x": 1.0,
+              "y": -60.0,
+              "z": 2.0
+            },
+            "range": 1
+          },
+          "usage": {
+            "calls": 2,
+            "model_calls": 2,
+            "prompt_tokens": 4805,
+            "completion_tokens": 193,
+            "total_tokens": 4998
+          },
+          "duration_seconds": 50.625,
+          "external_evidence": {
+            "distance": 0.848,
+            "position": {
+              "x": 0.5,
+              "y": -60,
+              "z": 1.315
+            }
+          }
+        },
+        {
+          "id": "constrained_delivery",
+          "task": "只用坐标(0,-60,-4)箱子里的两根橡木原木，做成八块橡木木板，存进坐标(8,-60,0)的箱子。目标箱要比现在新增8块，不准砍树，也不要动背包里原有的三块木板。",
+          "passed": true,
+          "end_state": "completed",
+          "goal": {
+            "type": "all_of",
+            "goals": [
+              {
+                "type": "container_delta",
+                "item": "minecraft:oak_planks",
+                "delta": 8,
+                "position": {
+                  "x": 8.0,
+                  "y": -60.0,
+                  "z": 0.0
+                }
+              },
+              {
+                "type": "inventory_delta",
+                "item": "minecraft:oak_planks",
+                "delta": 0
+              }
+            ]
+          },
+          "usage": {
+            "calls": 6,
+            "model_calls": 6,
+            "prompt_tokens": 26418,
+            "completion_tokens": 1269,
+            "total_tokens": 27687
+          },
+          "duration_seconds": 113.125,
+          "external_evidence": {
+            "source_log_delta": -2,
+            "target_plank_delta": 8,
+            "initial_player_planks": 3,
+            "final_player_planks": 3,
+            "player_log_delta": 0
+          }
+        },
+        {
+          "id": "reserved_materials",
+          "task": "请保留三块橡木木板，用附近原木额外制作四根木棍。可以采集，但不能消耗那三块保留木板。材料不够时先补料。",
+          "passed": true,
+          "end_state": "completed",
+          "goal": {
+            "type": "all_of",
+            "goals": [
+              {
+                "type": "inventory_at_least",
+                "item": "minecraft:stick",
+                "count": 4
+              },
+              {
+                "type": "inventory_at_least",
+                "item": "minecraft:oak_planks",
+                "count": 3
+              }
+            ]
+          },
+          "usage": {
+            "calls": 6,
+            "model_calls": 6,
+            "prompt_tokens": 27116,
+            "completion_tokens": 928,
+            "total_tokens": 28044
+          },
+          "duration_seconds": 68.719,
+          "external_evidence": {
+            "stick_delta": 4,
+            "final_planks": 5,
+            "minimum_observed_planks": 3
+          }
+        },
+        {
+          "id": "ambiguous_reference",
+          "task": "把那些东西放到那个箱子里。",
+          "passed": true,
+          "end_state": "needs_clarification",
+          "goal": null,
+          "usage": {
+            "calls": 1,
+            "model_calls": 1,
+            "prompt_tokens": 1638,
+            "completion_tokens": 72,
+            "total_tokens": 1710
+          },
+          "duration_seconds": 4.797,
+          "external_evidence": {
+            "mutation_count": 0,
+            "message": "需要澄清：请指定要放入箱子的物品名称、数量，以及目标箱子的坐标。"
+          }
+        }
+      ],
+      "status": "passed",
+      "api_attempts": 15,
+      "api_errors": 0,
+      "usage": {
+        "prompt_tokens": 59977,
+        "completion_tokens": 2462,
+        "total_tokens": 62439
+      },
+      "usage_incomplete": false
+    }
+  ],
+  "source_manifest": {
+    "executor/lib/action-context.js": "3479d0ed12ac22c6763594365c6e1381efcf93e051de3cfb1a78206dd2d80f12",
+    "executor/lib/action-manager.js": "d2e222497057cc014b4b696e04894a8bd543888b01ef52be15f2dc285510e2f0",
+    "executor/lib/actions/collect.js": "3d1901440cd707a7b88792c5d33c0ab495884c493acbe706515c34b8a26e87ee",
+    "executor/lib/actions/craft.js": "6a76aa1aed26ee96b89789531b4648ffc1d275d430797d96d9a7965b6c396118",
+    "executor/lib/actions/follow.js": "e6dd31487bcd551675cec51854583fa6e7f5ce1c9a0d8310f833d2106ce05bde",
+    "executor/lib/actions/goto.js": "ecc52107820a9f30b9794c17595ac6df088fbd235a199682cc2de2dc064e8dca",
+    "executor/lib/actions/index.js": "56140ed1b4e2d3d9b32ce1634d7bedede4fd0e867271cc7a24333a0db77d5031",
+    "executor/lib/actions/smelt.js": "54f1de7386917a3178e9e6969c09c6fb377ac3f4ca7fd2a3de81ddf9207365df",
+    "executor/lib/actions/transfer.js": "36bab728392b0ec35623ad31b64b0103b20d1c27abe7b4387a7901ce529f859d",
+    "executor/lib/cancellation.js": "642f4853ff0c6c2f302d0e1811f2d64a0a755c16e0ec5eb4c621ac19ce88c063",
+    "executor/lib/config.js": "a7c8f071f2a1edb795b42ad8964dbda7dcc8f171a3c5e8e499a43101eb5d8b18",
+    "executor/lib/containers.js": "f3fedf3a532acc50c4ce45808953a0aaf8f97912d1af90784be437b9c862246c",
+    "executor/lib/errors.js": "ff0b3539e6d3d0150326bb26001d282c0f86d99e198c398992e291ab31dffae8",
+    "executor/lib/game.js": "ae108abbfc6d5de390890559e99e4810d387232c4be152203d396a9bdf537ab7",
+    "executor/lib/inventory.js": "e08cfef06d3e6fd1fdc32984bada9c5fa7ab7bf670a46aef66bb83e168a8b164",
+    "executor/lib/observation.js": "55d3f09397e25f17c955aabbe6f9a4b3cc6528da5aebf2e0d43f9d5e6d5658fc",
+    "executor/lib/runtime.js": "7fa899b6691e18ac7269fb747c9793b786ae0529be595848311d3a1bc6268cb5",
+    "executor/lib/say.js": "33939a6142da4fbd10c24eba54517b2d7ea62b297c448405c5c40190ee2d1346",
+    "executor/lib/transport.js": "fd74b8b1276928d452ed4a8db976882c8f6393e1c1491789688f962120e59206",
+    "executor/lib/validation.js": "f293fbb6985ba298ccbc5ac2dc65bdb3ef087c1e1dc492ba6633bc391ecf565d",
+    "executor/package-lock.json": "4e251e410a0f369b6fdf3d3ea5f02300c57e5a9e79742b391c5f3198f5e1bc07",
+    "executor/server.js": "564f1dcb125ce2c8371bd4e3bed846a5564a11830350873a85b87c4776be0447",
+    "scripts/cloud_acceptance.py": "26899266e61eb8ffef8798d34a60dbfbbccead7fb7ea34e3938cdd24d6937a99",
+    "scripts/dev.py": "5b86288239f965ebf4296e5ba5b69ab5d60f0ddff84c41770dbb46e3813e73b9",
+    "scripts/export_acceptance.py": "bfdc4beba9b72eee9b4c714c5e8cb8c88283cb9613342877640648e7b3503cfc",
+    "scripts/export_cloud_acceptance.py": "cda5e4a4f97be81f0c3f12ff2ce7ddd14cb86ed6d8828db5d0c6120654e4416c",
+    "scripts/fixture_commands.txt": "44b96f4ea4b39068e6ced8b32bb815d3958cf42488c001960c2a7e3b1007cd71",
+    "scripts/lab_server.py": "31ef9ecef9693b506f7422fe381dc1a2242e429fc980b9e1915532ec1f0393a7",
+    "scripts/live_acceptance.py": "b2af32ed3d8d53f96ace9c90c8730f2d522df8023a3295d2c00f8fae6e378110",
+    "scripts/live_chat.py": "bbc0fb6a1627a3310e8b7bf59f2cba9418fea6fa621ded724d7f13fafe488427",
+    "scripts/live_tasks.py": "a11fb62fe4180c5765e8bcf7b20d1ece47cc61cde99fc678ad84448e2223e0ab",
+    "scripts/probe_model.py": "904c4caecd8a04226d32ca3fa63de743bda32eb7f6e78964a1e1c3623a495c11",
+    "scripts/setup_lab.py": "ce3b6aab1a161b12ce9479b20eec0d7251336fa08a8123fbd5558fade1cd564f",
+    "scripts/smoke_executor.py": "89fdba88248177e268f8d30df63d8963bafd11f609ce0db0884add317f4d0228",
+    "src/sim_agent/__init__.py": "eb9636ae189482679ddffd55a4d4ba2d1c5fa1d14975ed0b6f4a7bcc94a3fb56",
+    "src/sim_agent/__main__.py": "63068371aa22d6aa82ebf28762cb82b9d62078a2ebe9f3b85649e27a5e090c32",
+    "src/sim_agent/adapters/__init__.py": "6b0b0ce82a25dfc0115df3f9da8647d7cd2dc56818077bf51ae195a7642a1a18",
+    "src/sim_agent/adapters/mineflayer.py": "4a07e9d0ddf8dec60d7bdac9a997d8e5d2847c80a4ba30b6d54e5345e130592a",
+    "src/sim_agent/adapters/mock.py": "e590a4d96f0e71d27cdcdfc093d77d1ecabb94ea6dd0f556d5e04f650b19ee6d",
+    "src/sim_agent/app/__init__.py": "65708e93f9ca9c4c62b0fbb0b7a60d6775d73abf2987a95f02da01b2de77cbef",
+    "src/sim_agent/app/cli.py": "0e2f0ef5106ac527fad925952a0ec939139c11f444946de14b6bd9d8e492c565",
+    "src/sim_agent/app/config.py": "c2eeba17c7f3a35a4dc5750ba8a615f77ad595da56e1119e988e160616438972",
+    "src/sim_agent/app/demo.py": "0ada8f0ef0f4aced24fe115119a8326d94d66302f9bce2f7c5f1f80a703f456e",
+    "src/sim_agent/domain/__init__.py": "c64eb7ac6b5b77f50de04a6294cd816dcfcd04955d65bdc153f965dfc7bc7288",
+    "src/sim_agent/domain/constraints.py": "a4f6a798b09f485e5df570f3e48f45dd7e07b5516e10d0590bc5bcd510821d9e",
+    "src/sim_agent/domain/errors.py": "74f83c3823d8f43ff6014bef7bef164f3b9fb86ee6080c4e0470cbbc7f32d8d2",
+    "src/sim_agent/domain/goals.py": "81e418c319c6f7f33136339f2d3f1a3e60f7b26606853ead5300f6f35eaa2735",
+    "src/sim_agent/domain/references.py": "e01c1db7512911468df9ec5621ef59c8a84c931331dd4de7e024dc4d53190633",
+    "src/sim_agent/domain/state.py": "8722c0bf269fcff57c26a9d28cdbd63fe16fecffa37cac117384de46038aea1c",
+    "src/sim_agent/domain/task_spec.py": "f0c6664ab5d12fb142fc61f540102cd4dc55abd9d4219509949e4710ca515950",
+    "src/sim_agent/domain/validation.py": "f88a5e5b184039e3eaf3bcfbcf880956dd522073717ca3ebe56bccc744c72395",
+    "src/sim_agent/evaluation/__init__.py": "a101ace8b5b01244e7b405269eb07379ea9012339fd30d50dabe34fdf8ea572a",
+    "src/sim_agent/evaluation/metrics.py": "3f248289afac6024378c9731a38afd93bdc22fbeca744d86c20e10bc1887fa95",
+    "src/sim_agent/execution/__init__.py": "f55ce6e762d5809865f98b351048d1de371349924ff2aaa4e897d9b7d5156c1b",
+    "src/sim_agent/execution/runner.py": "580232f4443acfa1d5cd34acf70b025c69661fd57982337a51eb46cb9fee8577",
+    "src/sim_agent/execution/service.py": "31340917a5227349e9a203383a8afd3c474f2fad8908ce389602ec2cbbabb133",
+    "src/sim_agent/memory/__init__.py": "d11fe0e6a5cc9ceea839f4abccc6e29082bb084069b89ce6b6d6898c53570c6c",
+    "src/sim_agent/memory/retrieval.py": "84b6bfa2a803b9fdc6c7f2f516d70e4262d4ca18673ce65c73eefeb82f381269",
+    "src/sim_agent/memory/store.py": "87b3fd232e1f36dae5f43332538335c535363b5bdd68e3d82d45b51b9713f489",
+    "src/sim_agent/observability/__init__.py": "28a404119ac2b8ca7dd950f1500baddbcaafa25613c5c84ab5b8ed406058291a",
+    "src/sim_agent/observability/jsonl.py": "638b437056becddf9ef0b8f6311f591b335c04682dd5751aa35098431b9d3964",
+    "src/sim_agent/planning/__init__.py": "73f0efc23b5d072a8a9e097f408a7aa6c541e9b85ae728f9b45acb5ea827b298",
+    "src/sim_agent/planning/model.py": "e1552028b78c829cb945ccd7ebb068aed7bbca69a4bce36e29588fbf92312edb",
+    "src/sim_agent/planning/planner.py": "07d321ea3242f82b773d570dd27119e73489a942f67e077941c860353ce12851",
+    "src/sim_agent/planning/rules.py": "d56c3e3e1463f8aea905978cab7d1ef4adbb360b3766ee6ee7734e0bc90d41e8"
+  },
+  "source_hash_format": "SHA-256 after normalizing text line endings to LF",
+  "development_history": [
+    {
+      "run_id": "20261028T003808977467Z",
+      "status": "failed",
+      "providers": [
+        {
+          "provider": "deepseek",
+          "model": "deepseek-flash",
+          "passed_cases": 3,
+          "total_cases": 4,
+          "failed_cases": [
+            "ambiguous_reference"
+          ],
+          "api_attempts": 16,
+          "usage": {
+            "prompt_tokens": 65323,
+            "completion_tokens": 1915,
+            "total_tokens": 67238
+          }
+        },
+        {
+          "provider": "siliconflow",
+          "model": "deepseek-ai/DeepSeek-V3.2",
+          "passed_cases": 1,
+          "total_cases": 4,
+          "failed_cases": [
+            "constrained_delivery",
+            "reserved_materials",
+            "ambiguous_reference"
+          ],
+          "api_attempts": 26,
+          "usage": {
+            "prompt_tokens": 94449,
+            "completion_tokens": 3731,
+            "total_tokens": 98180
+          }
+        }
+      ]
+    },
+    {
+      "run_id": "20261028T004726415136Z",
+      "status": "passed",
+      "providers": [
+        {
+          "provider": "deepseek",
+          "model": "deepseek-flash",
+          "passed_cases": 4,
+          "total_cases": 4,
+          "failed_cases": [],
+          "api_attempts": 13,
+          "usage": {
+            "prompt_tokens": 49527,
+            "completion_tokens": 1066,
+            "total_tokens": 50593
+          }
+        },
+        {
+          "provider": "siliconflow",
+          "model": "deepseek-ai/DeepSeek-V3.2",
+          "passed_cases": 4,
+          "total_cases": 4,
+          "failed_cases": [],
+          "api_attempts": 14,
+          "usage": {
+            "prompt_tokens": 55126,
+            "completion_tokens": 2320,
+            "total_tokens": 57446
+          }
+        }
+      ]
+    },
+    {
+      "run_id": "20261028T005645004654Z",
+      "status": "failed",
+      "providers": [
+        {
+          "provider": "deepseek",
+          "model": "deepseek-flash",
+          "passed_cases": 3,
+          "total_cases": 4,
+          "failed_cases": [
+            "reserved_materials"
+          ],
+          "api_attempts": 15,
+          "usage": {
+            "prompt_tokens": 66833,
+            "completion_tokens": 1543,
+            "total_tokens": 68376
+          }
+        },
+        {
+          "provider": "siliconflow",
+          "model": "deepseek-ai/DeepSeek-V3.2",
+          "passed_cases": 4,
+          "total_cases": 4,
+          "failed_cases": [],
+          "api_attempts": 15,
+          "usage": {
+            "prompt_tokens": 58988,
+            "completion_tokens": 2509,
+            "total_tokens": 61497
+          }
+        }
+      ]
+    },
+    {
+      "run_id": "20261028T010156234469Z",
+      "status": "passed",
+      "providers": [
+        {
+          "provider": "deepseek",
+          "model": "deepseek-flash",
+          "passed_cases": 4,
+          "total_cases": 4,
+          "failed_cases": [],
+          "api_attempts": 13,
+          "usage": {
+            "prompt_tokens": 47918,
+            "completion_tokens": 1039,
+            "total_tokens": 48957
+          }
+        },
+        {
+          "provider": "siliconflow",
+          "model": "deepseek-ai/DeepSeek-V3.2",
+          "passed_cases": 4,
+          "total_cases": 4,
+          "failed_cases": [],
+          "api_attempts": 15,
+          "usage": {
+            "prompt_tokens": 59977,
+            "completion_tokens": 2462,
+            "total_tokens": 62439
+          }
+        }
+      ]
+    }
+  ],
+  "usage_scope": "Provider token usage covers returned responses in each listed task run; discovery, probes and separate manual diagnostics are excluded. Errors with unavailable usage are marked incomplete.",
+  "limitations": [
+    "Four controlled engineering cases per provider, not independent statistical trials",
+    "Development runs use different code/prompt versions and are not model-quality comparisons",
+    "No B1/B2/B3 learning-effect or modpack-compatibility claim"
+  ]
+}

@@ -21,6 +21,12 @@ from sim_agent.domain.errors import ModelError, ModelTimeout
 _MAX_RESPONSE_BYTES = 2_000_000
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        # Never forward a user's credential to a redirected host.
+        return None
+
+
 @dataclass(frozen=True, slots=True)
 class ModelResult:
     text: str
@@ -35,10 +41,10 @@ class ModelClient(Protocol):
 
 
 class DeepSeekClient:
-    def __init__(self, config: ModelConfig, *, max_tokens: int = 900) -> None:
+    def __init__(self, config: ModelConfig, *, max_tokens: int | None = None) -> None:
         self._config = config
         self._key_file = Path(config.key_file).expanduser()
-        self._max_tokens = max_tokens
+        self._max_tokens = config.max_tokens if max_tokens is None else max_tokens
         base = config.base_url.rstrip("/")
         if base.endswith("/chat/completions"):
             self._endpoint = base
@@ -47,13 +53,15 @@ class DeepSeekClient:
 
     def _read_key(self) -> str:
         try:
-            key = self._key_file.read_text(encoding="utf-8").strip()
+            key = self._key_file.read_text(encoding="utf-8-sig").strip()
         except OSError as exc:
             # Do not include the path or OS error body; both can leak local
             # details and neither helps the player.
             raise ModelError("无法读取模型密钥文件") from exc
         if not key:
             raise ModelError("模型密钥文件为空")
+        if not key.isascii() or any(c.isspace() for c in key):
+            raise ModelError("密钥文件应只包含一行 API Key，不含空白或说明文字")
         return key
 
     def _post(self, key: str, payload: bytes, timeout: float) -> tuple[int, bytes]:
@@ -68,7 +76,7 @@ class DeepSeekClient:
             },
         )
         try:
-            with urllib.request.urlopen(request, timeout=timeout) as response:
+            with urllib.request.build_opener(_NoRedirect).open(request, timeout=timeout) as response:
                 return response.status, response.read(_MAX_RESPONSE_BYTES)
         except urllib.error.HTTPError as exc:
             # Close without reading/logging the body.
@@ -89,15 +97,21 @@ class DeepSeekClient:
         self, messages: list[dict[str, str]], timeout: float
     ) -> ModelResult:
         key = await asyncio.to_thread(self._read_key)
-        payload = json.dumps(
-            {
+        request_body = {
                 "model": self._config.name,
                 "messages": messages,
                 "temperature": 0,
                 "stream": False,
                 "response_format": {"type": "json_object"},
                 "max_tokens": self._max_tokens,
-            },
+            }
+        if self._config.thinking is not None:
+            if self._config.provider == "deepseek":
+                request_body["thinking"] = {"type": "enabled" if self._config.thinking else "disabled"}
+            elif self._config.provider == "siliconflow":
+                request_body["enable_thinking"] = self._config.thinking
+        payload = json.dumps(
+            request_body,
             ensure_ascii=False,
         ).encode("utf-8")
         try:
@@ -117,6 +131,8 @@ class DeepSeekClient:
             content = parsed["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError):
             raise ModelError("模型响应缺少 choices[0].message.content") from None
+        if parsed["choices"][0].get("finish_reason") == "length":
+            raise ModelError("模型输出达到 token 上限，已拒绝截断结果")
         if not isinstance(content, str) or not content.strip():
             raise ModelError("模型响应内容为空")
         raw_usage = parsed.get("usage")

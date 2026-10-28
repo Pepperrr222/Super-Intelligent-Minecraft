@@ -40,6 +40,9 @@ class ModelConfig:
     name: str
     key_file: Path
     timeout_seconds: float
+    provider: str = "generic"
+    thinking: bool | None = None
+    max_tokens: int = 1600
 
 
 @dataclass(frozen=True, slots=True)
@@ -137,6 +140,17 @@ def load_config(path: str | Path) -> AppConfig:
     model_name = _text(model_raw, "name", "model", max_len=128)
     key_file_raw = _text(model_raw, "key_file", "model", max_len=4096)
     model_timeout = _number(model_raw, "timeout_seconds", "model", 1.0, 300.0)
+    provider = model_raw.get("provider", "generic")
+    if provider not in {"generic", "deepseek", "siliconflow"}:
+        raise ConfigError("model.provider 必须是 generic、deepseek 或 siliconflow")
+    thinking = model_raw.get("thinking")
+    if thinking is not None and not isinstance(thinking, bool):
+        raise ConfigError("model.thinking 必须为布尔值或 null")
+    if thinking is not None and provider == "generic":
+        raise ConfigError("设置 thinking 时需明确 model.provider")
+    max_tokens = model_raw.get("max_tokens", 1600)
+    if isinstance(max_tokens, bool) or not isinstance(max_tokens, int) or not 128 <= max_tokens <= 8192:
+        raise ConfigError("model.max_tokens 必须是128..8192的整数")
     key_file = Path(key_file_raw).expanduser()
     if not key_file.is_absolute():
         key_file = config_path.parent / key_file
@@ -184,6 +198,9 @@ def load_config(path: str | Path) -> AppConfig:
             name=model_name,
             key_file=key_file,
             timeout_seconds=model_timeout,
+            provider=provider,
+            thinking=thinking,
+            max_tokens=max_tokens,
         ),
         runtime_dir=runtime_path,
         config_path=config_path,

@@ -11,7 +11,7 @@ import asyncio
 import inspect
 import time
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Awaitable, Callable
 
 from sim_agent.app.config import AppConfig
@@ -29,7 +29,8 @@ from sim_agent.domain.errors import (
     WorldChangedError,
 )
 from sim_agent.domain.goals import Goal, GoalVerifier, VerificationResult, parse_goal, goal_leaves, container_key
-from sim_agent.domain.constraints import parse_constraints, explicit_constraints, merge_constraints, guard_action, check_inventory
+from sim_agent.domain.constraints import parse_constraints, explicit_constraints, merge_constraints, guard_action, check_inventory, validate_reserved_goal
+from sim_agent.domain.references import unresolved_reference
 from sim_agent.observability.jsonl import NullLogs, RuntimeLogs, utc_now
 from sim_agent.planning.planner import Planner, build_context
 from sim_agent.domain.state import StepRecord, TaskState, inventory_snapshot, normalize_observation
@@ -573,6 +574,16 @@ class TaskRunner:
                 )
                 continue
 
+            if decision.step.op == "clarify":
+                # A question must never trigger a guessed goal's baseline
+                # inspection, navigation or new constraints as a side effect.
+                decision = replace(decision, goal=None, constraints=None)
+            reference_error = unresolved_reference(state.task_text) if not state.continuation_context else None
+            if reference_error and decision.step.op != "clarify":
+                await self._register_failure(state, step_index, "invalid", {}, "rejected",
+                    reference_error, "unbound_reference", error=reference_error)
+                continue
+
             # Goal establishment / immutability.
             proposed_constraints = parse_constraints(decision.constraints)
             merged = merge_constraints(state.constraints, proposed_constraints)
@@ -584,6 +595,8 @@ class TaskRunner:
             if decision.goal is not None:
                 try:
                     proposed_goal = parse_goal(decision.goal)
+                    if state.goal is None:
+                        validate_reserved_goal(proposed_goal, state.constraints, state.task_text)
                 except ValidationError as exc:
                     await self._register_failure(
                         state,

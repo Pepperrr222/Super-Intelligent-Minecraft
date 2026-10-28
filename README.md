@@ -107,11 +107,14 @@ sim-agent --config config.json --task "去坐标 1 -60 2 附近"
 
 - [系统架构](docs/ARCHITECTURE.md)：职责、数据流和原设计对应关系。
 - [动作协议](docs/PROTOCOL.md)：JSONL 契约与数量语义。
+- [云模型配置](docs/MODELS.md)：DeepSeek/SiliconFlow 参数、密钥路径和真实验收入口。
 - [运行与开发](docs/DEVELOPMENT.md)：安装、测试和隔离世界。
 - [能力与验收](docs/VALIDATION.md)：实现、离线测试与真实验收的区别。
 - [后续路线](docs/ROADMAP.md)：原版、NLP、学习和整合包适配。
 - [实验约定](benchmarks/README.md)：B0/B1 先导实验与后续消融。
 
-已在官方原版 1.21.1 隔离服完成动作、复合任务和真实玩家聊天的受控验收，摘要见 [验收证据](benchmarks/results/vanilla-2026-10-28.json)。测试使用规则基线和明确标识的验收脚本，尚未验证云模型通用理解，也没有经验学习提升数据。当前后端只覆盖原版动作集合，整合包兼容需要单独验证。
+已在官方原版 1.21.1 隔离服完成23项动作、复合任务和真实玩家聊天检查，摘要见 [原版验收证据](benchmarks/results/vanilla-2026-10-28.json)。另以 DeepSeek 与 SiliconFlow 实际云模型分别执行移动、约束交付、保留材料合成和歧义澄清，使用相同执行层与独立世界检查，见 [云模型记录](benchmarks/results/cloud-2026-10-28.json)。开发中失败的运行也保留在记录中。
+
+这些是受控工程验收，没有测量经验学习提升或通用生存能力。当前后端只覆盖原版动作集合，整合包兼容需要单独验证。
 
 依赖参考：[Mineflayer API](https://github.com/PrismarineJS/mineflayer/blob/master/docs/api.md)、[Pathfinder](https://github.com/PrismarineJS/mineflayer-pathfinder)。原始设计保存在 [docs/design](docs/design)。

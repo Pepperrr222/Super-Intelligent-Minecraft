@@ -5,7 +5,7 @@ import re
 from typing import Any
 from sim_agent.domain.errors import ValidationError
 from sim_agent.domain.validation import canonical_item, position, _exact_keys, _int_range
-from sim_agent.domain.goals import container_key, observation_inventory
+from sim_agent.domain.goals import Goal, goal_leaves, container_key, observation_inventory
 
 
 def parse_constraints(raw: Any) -> dict[str, Any]:
@@ -76,6 +76,28 @@ def merge_constraints(existing: dict, proposed: dict) -> dict:
             raise ValidationError("来源限制互相冲突")
         result["allowed_sources"] = allowed
     return result
+
+
+def validate_reserved_goal(goal: Goal, constraints: dict, task_text: str) -> None:
+    """Reject an unsupported exact-stock interpretation before locking a goal.
+
+    Delivery conservation and explicitly unchanged stock remain valid. This
+    limited check never rewrites a proposal or tries to parse an entire task.
+    """
+    explicit_keep = explicit_constraints(task_text).get("keep_inventory", {})
+    if not explicit_keep or re.search(r"数量不变|库存不变|保持不变|净变化|恰好|正好|exactly|unchanged", task_text, re.I):
+        return
+    leaves = list(goal_leaves(goal))
+    delivered = {g.spec["item"] for g in leaves if g.type == "container_delta" and g.spec["delta"] > 0}
+    for leaf in leaves:
+        if (leaf.type == "inventory_delta" and leaf.spec["delta"] == 0
+                and leaf.spec["item"] in explicit_keep and leaf.spec["item"] not in delivered):
+            item = leaf.spec["item"]
+            raise ValidationError(
+                f"保留 {item} 是下限 keep_inventory={constraints.get('keep_inventory', {}).get(item, explicit_keep[item])}，"
+                "不能额外要求 inventory_delta=0。允许补料后的余料；请重新提出产物目标和保留下限，"
+                "若确实需要最终数量完全不变请先澄清。目标尚未锁定，任何动作均未执行。"
+            )
 
 
 def check_inventory(constraints: dict, observation: dict) -> None:

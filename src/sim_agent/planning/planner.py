@@ -25,6 +25,12 @@ Decision schema:
   "message": "short Chinese note"   // optional, <=500 chars
 }
 
+Full format examples only (never copy their coordinates or goals into a task):
+{"goal":{"type":"inventory_increase","item":"minecraft:cobblestone","count":1},"step":{"op":"act","args":{"kind":"withdraw","position":{"x":10,"y":64,"z":20},"item":"minecraft:cobblestone","count":1}}}
+{"step":{"op":"clarify","args":{"question":"请给出物品、数量和目标箱子坐标。"}}}
+Action names such as withdraw, craft, goto and deposit are NOT step.op values.
+All game actions must use step.op="act" with the action name in args.kind.
+
 Step operations and validated args:
 - observe: {}
 - find_blocks: {"names":["minecraft:oak_log"],"radius":1..32,"limit":1..16}
@@ -78,6 +84,17 @@ Hard rules:
    A container_at_least goal alone does not prove new production or delivery.
 10. A continuation_context is verified prior-task progress plus a user correction.
     Check current state and continue remaining work; do not blindly repeat crafting.
+11. If "this/that chest" or "these/those items" have no supplied object binding,
+    ask clarify BEFORE establishing a guessed container goal. Never invent any
+    coordinate, even for an observation or a baseline inspection. Nearby objects
+    do not establish what the user intended.
+12. keep_inventory is a MINIMUM, not an exact final count. For example preserving
+    three planks while making sticks permits extra newly crafted planks to remain.
+    Do not add inventory_delta=0 for a reserved ingredient unless the user asks
+    for exactly unchanged stock. Extra material is different from using reserves.
+13. latest_observation is already fresh at task start and after every action.
+    Avoid repeating observe with no expected state change; query missing recipes
+    or containers instead and spend the action budget on useful progress.
 """
 
 

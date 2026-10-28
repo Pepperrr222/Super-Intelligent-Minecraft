@@ -243,6 +243,15 @@ def validate_step(raw: Any) -> ToolCall:
     _exact_keys(step, "step", required={"op"}, optional={"args"})
     _reject_forbidden_keys(step, "step")
     op = step.get("op")
+    if isinstance(op, str) and op in ACTION_KINDS:
+        example_args = dict(step.get("args", {})) if isinstance(step.get("args", {}), dict) else {}
+        example_args["kind"] = op
+        try:
+            example_args = _validate_action(example_args)
+        except ValidationError:
+            example_args = {"kind": op}
+        example = canonical_json({"op": "act", "args": example_args})
+        raise ValidationError(f"step.op 不能直接使用动作名 {op}，请改为：{example}")
     if not isinstance(op, str) or op not in STEP_OPS:
         raise ValidationError(
             f"step.op 必须是 {', '.join(sorted(STEP_OPS))} 之一"

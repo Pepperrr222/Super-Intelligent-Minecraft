@@ -75,6 +75,8 @@ End states: completed, failed, cancelled, needs_clarification, exhausted. Same f
 
 Root config schema is illustrated in config.example.json. The Node child only retains the minecraft section; current executor accepts offline authentication only. Python resolves model.key_file and runtime_dir relative to the config file. Secrets are never embedded in public config.
 
+Model settings optionally include provider (generic/deepseek/siliconflow), thinking (boolean), and max_tokens (128..8192). Vendor thinking flags are translated only for the chosen provider. HTTP redirects and truncated model output are rejected; credentials remain local. See MODELS.md for examples.
+
 learning.mode supports B0/B1. B0 saves evidence without retrieving it. B1 retrieves at most three matching episodes; these are historical advice and do not bypass current action checks. ruleset_id is manually maintained, not automatically discovered.
 
 Task records carry goals, observations, actions, result evidence, usage and terminal status. SQLite episodes are immutable by task_id; skills require explicit replay linkage and two independent successful scenarios before promotion. Templates remain data, with automatic skill execution reserved for B2/B3.
