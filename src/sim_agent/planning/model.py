@@ -11,12 +11,14 @@ import asyncio
 import json
 import urllib.error
 import urllib.request
+import httpx
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
 from sim_agent.app.config import ModelConfig
 from sim_agent.domain.errors import ModelError, ModelTimeout
+from sim_agent.planning.streaming import ModelObserver, OutputAccumulator, SSEDecoder, StreamError, usage_counts
 
 _MAX_RESPONSE_BYTES = 2_000_000
 
@@ -32,6 +34,7 @@ class ModelResult:
     text: str
     usage: dict[str, Any]
     model: str
+    reasoning: str = ""
 
 
 class ModelClient(Protocol):
@@ -77,7 +80,10 @@ class DeepSeekClient:
         )
         try:
             with urllib.request.build_opener(_NoRedirect).open(request, timeout=timeout) as response:
-                return response.status, response.read(_MAX_RESPONSE_BYTES)
+                body = response.read(_MAX_RESPONSE_BYTES + 1)
+                if len(body) > _MAX_RESPONSE_BYTES:
+                    raise StreamError("模型响应超过大小上限", "truncated")
+                return response.status, body
         except urllib.error.HTTPError as exc:
             # Close without reading/logging the body.
             try:
@@ -93,15 +99,12 @@ class DeepSeekClient:
         except (TimeoutError, OSError):
             raise ModelTimeout("模型网络请求超时") from None
 
-    async def complete(
-        self, messages: list[dict[str, str]], timeout: float
-    ) -> ModelResult:
-        key = await asyncio.to_thread(self._read_key)
+    def _request_body(self, messages, *, stream):
         request_body = {
                 "model": self._config.name,
                 "messages": messages,
                 "temperature": 0,
-                "stream": False,
+                "stream": stream,
                 "response_format": {"type": "json_object"},
                 "max_tokens": self._max_tokens,
             }
@@ -110,8 +113,14 @@ class DeepSeekClient:
                 request_body["thinking"] = {"type": "enabled" if self._config.thinking else "disabled"}
             elif self._config.provider == "siliconflow":
                 request_body["enable_thinking"] = self._config.thinking
+        if stream and self._config.provider == "deepseek":
+            request_body["stream_options"] = {"include_usage": True}
+        return request_body
+
+    async def _complete_json(self, messages, timeout, output) -> ModelResult:
+        key = await asyncio.to_thread(self._read_key)
         payload = json.dumps(
-            request_body,
+            self._request_body(messages, stream=False),
             ensure_ascii=False,
         ).encode("utf-8")
         try:
@@ -131,15 +140,71 @@ class DeepSeekClient:
             content = parsed["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError):
             raise ModelError("模型响应缺少 choices[0].message.content") from None
-        if parsed["choices"][0].get("finish_reason") == "length":
+        reasoning = parsed["choices"][0]["message"].get("reasoning_content")
+        output.append("reasoning", reasoning)
+        output.append("decision", content)
+        output.usage.update(usage_counts(parsed.get("usage")))
+        output.finish_reason = parsed["choices"][0].get("finish_reason", "stop")
+        if output.finish_reason == "length":
             raise ModelError("模型输出达到 token 上限，已拒绝截断结果")
         if not isinstance(content, str) or not content.strip():
             raise ModelError("模型响应内容为空")
-        raw_usage = parsed.get("usage")
-        usage: dict[str, Any] = {}
-        if isinstance(raw_usage, dict):
-            for key_name in ("prompt_tokens", "completion_tokens", "total_tokens"):
-                value = raw_usage.get(key_name)
-                if isinstance(value, int) and not isinstance(value, bool):
-                    usage[key_name] = value
-        return ModelResult(text=content, usage=usage, model=self._config.name)
+        return ModelResult(text=content, usage=usage_counts(parsed.get("usage")), model=self._config.name,
+                           reasoning=reasoning if isinstance(reasoning, str) else "")
+
+    async def complete(self, messages, timeout) -> ModelResult:
+        return await self.complete_observed(messages, timeout, None)
+
+    async def complete_observed(self, messages, timeout, observer: ModelObserver | None) -> ModelResult:
+        emit = observer or (lambda event: None)
+        output = OutputAccumulator(emit)
+        emit({"type": "model_start", "model": self._config.name, "provider": self._config.provider,
+              "thinking": self._config.thinking, "stream": self._config.stream})
+
+        def end(status):
+            emit({"type": "model_end", "status": status, "finish_reason": output.finish_reason,
+                  "reasoning_status": "provided" if output.text("reasoning") else
+                      ("disabled" if self._config.thinking is False else "not_provided"),
+                  "reasoning_chars": len(output.text("reasoning")), "decision_chars": len(output.text("decision")),
+                  "usage": output.usage, "usage_incomplete": "total_tokens" not in output.usage})
+
+        try:
+            if self._config.stream:
+                key = await asyncio.to_thread(self._read_key)
+                async with asyncio.timeout(timeout):
+                    async with httpx.AsyncClient(follow_redirects=False, timeout=timeout) as client:
+                        async with client.stream("POST", self._endpoint,
+                                headers={"Authorization": "Bearer " + key, "Content-Type": "application/json", "Accept": "text/event-stream"},
+                                content=json.dumps(self._request_body(messages, stream=True), ensure_ascii=False).encode("utf-8")) as response:
+                            if response.status_code != 200:
+                                raise ModelError(f"模型服务返回 HTTP {response.status_code}")
+                            if "text/event-stream" not in response.headers.get("content-type", ""):
+                                raise StreamError("模型未返回 SSE 流；请检查接口的流式支持")
+                            decoder = SSEDecoder(output.chunk)
+                            async for chunk in response.aiter_bytes():
+                                decoder.feed(chunk)
+                            decoder.finish()
+                output.validate()
+                result = ModelResult(output.text("decision"), output.usage, self._config.name, output.text("reasoning"))
+            else:
+                result = await self._complete_json(messages, timeout, output)
+            end("completed")
+            return result
+        except asyncio.CancelledError:
+            end("cancelled")
+            raise
+        except (asyncio.TimeoutError, TimeoutError, httpx.TimeoutException):
+            end("timed_out")
+            raise ModelTimeout("模型请求超时") from None
+        except ModelTimeout:
+            end("timed_out")
+            raise
+        except (httpx.ReadError, httpx.RemoteProtocolError):
+            end("interrupted")
+            raise ModelError("模型流连接中断，已拒绝部分决策") from None
+        except ModelError as exc:
+            end(getattr(exc, "status", "truncated" if "token 上限" in str(exc) else "error"))
+            raise
+        except Exception as exc:
+            end("error")
+            raise ModelError(f"模型流请求失败（{type(exc).__name__}）") from None

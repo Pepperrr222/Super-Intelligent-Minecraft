@@ -7,7 +7,7 @@ name = "super-intelligent-minecraft"
 version = "0.2.0"
 description = "Evidence-driven Minecraft agent with Python planning and Mineflayer execution"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = ["httpx>=0.28.1,<0.29"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]

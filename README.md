@@ -90,7 +90,9 @@ sim-agent --config config.json --task "去坐标 1 -60 2 附近"
 python scripts/dev.py run --config config.json --dashboard
 ```
 
-面板按时间显示目标、模型公开的决策说明、下一步提案、程序拒绝或放行、动作反馈和独立完成验证，并可切换最近任务。它读取 `runtime_dir/trace.jsonl`，不额外调用模型，也不展示模型内部隐藏推理。升级后需重启 Agent 才能记录逐步规划。
+面板首先显示上层模型接口实际返回的思考原文，可实时更新并按规划调用回看；最终决策输出与思考分开显示。时间线继续显示目标、下一步提案、拒绝或放行、动作反馈和独立完成验证。设置 `model.thinking=true`、`model.stream=true` 可开启思考和流式返回；关闭或接口未提供时明确标识，不补写文本。
+
+思考输出保存在配置的 `runtime_dir/model-calls/`，时间线保存在 `trace.jsonl`；它们留在本机，不提交 Git。面板本身不额外调用模型；开启思考可能增加实际任务调用的时间和用量，仍受原有预算限制。升级后需重启 Agent。
 
 也可单独运行 `python scripts/dashboard.py --config config.json`，在 Agent 退出后继续查看记录；用 `--runtime-dir runtime/demo` 查看明确标记的离线演示。详见 [规划面板](docs/DASHBOARD.md)。
 

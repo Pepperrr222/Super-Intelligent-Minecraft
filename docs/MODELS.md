@@ -14,7 +14,8 @@ DeepSeek 的 model 区块示例：
   "base_url": "https://api.deepseek.com",
   "name": "deepseek-flash",
   "key_file": ".secrets/deepseek.key",
-  "thinking": false,
+  "thinking": true,
+  "stream": true,
   "max_tokens": 1600,
   "timeout_seconds": 60
 }
@@ -28,7 +29,8 @@ SiliconFlow 示例：
   "base_url": "https://api.siliconflow.cn/v1",
   "name": "deepseek-ai/DeepSeek-V3.2",
   "key_file": ".secrets/siliconflow.key",
-  "thinking": false,
+  "thinking": true,
+  "stream": true,
   "max_tokens": 1600,
   "timeout_seconds": 60
 }
@@ -42,7 +44,9 @@ config.json、config.*.local.json 和 .secrets/ 均被 Git 忽略。团队可以
 
 provider=deepseek 时，thinking=false 映射为 `thinking: {"type":"disabled"}`。provider=siliconflow 时映射为 `enable_thinking:false`。generic 模式不附加厂商专用参数。
 
-这与仓库使用的 JSON 单步决策相配合。max_tokens 限制最终输出，达到上限的截断回复会被拒绝，不能当成完整动作。思考内容不保存到任务日志。
+stream=true 使用异步 SSE 接收，兼容 DeepSeek/SiliconFlow 的 reasoning_content 与 content 双通道。思考原文单独保存在本机 model-calls/，不会进入动作解析、TaskSpec 或长期经验。非流式接口返回的思考也可在调用结束后回看。接口未提供、显式关闭、达到上限、断流和取消均有明确状态，不推测或补写缺失内容。
+
+max_tokens 由模型服务解释，DeepSeek 与 SiliconFlow 的思考计量口径可能不同；用量以接口返回值为准。达到 token 上限的最终回复会被拒绝，不能当成完整动作。开启思考不会自动提高本项目的 token、步数或时间上限。
 
 请求不跟随 HTTP 重定向，避免将认证头转发至其他地址。HTTP 错误仅保留状态码，不输出原始响应体或密钥。
 
@@ -57,7 +61,7 @@ python scripts/probe_model.py --config config.deepseek.local.json
 python scripts/probe_model.py --config config.siliconflow.local.json
 ```
 
-会实际调用 API 并产生少量用量，只显示状态、模型、延迟和 token。普通启动可用：
+探测会显式关闭思考和流式，仅检查小额 JSON 联通；不验收思考输出。它实际调用 API 并产生少量用量，只显示状态、模型、延迟和 token。普通启动可用：
 
 ```bash
 sim-agent --planner llm --config config.siliconflow.local.json

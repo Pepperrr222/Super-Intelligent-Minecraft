@@ -823,19 +823,45 @@ class TaskRunner:
     ) -> Any:
         remaining = self._remaining(deadline)
         timeout = min(self._config.model.timeout_seconds, remaining)
+        observed = getattr(self._planner, "decide_observed", None)
+        call_id = "call-" + uuid.uuid4().hex
+        model_task_id = self._task_id
+        call_closed = False
+        def emit(event):
+            nonlocal call_closed
+            if call_closed:
+                return
+            if event.get("type") == "model_end":
+                call_closed = True
+            self._logs.model_event({**event, "call_id": call_id, "task_id": model_task_id,
+                                    "step": context["state"]["step_index"]})
+        decision = observed(context, timeout, emit) if callable(observed) else self._planner.decide(context, timeout)
         try:
             reply = await self._race(
-                self._planner.decide(context, timeout),
+                decision,
                 timeout + 0.1,
                 cancel_event,
                 OperationTimeout("模型响应超时"),
             )
+        except (TaskCancelled, asyncio.CancelledError):
+            # HTTP cleanup can finish after task cancellation. Close the
+            # observation record now and ignore every late output fragment.
+            emit({"type": "model_end", "status": "cancelled", "usage_incomplete": True})
+            raise
         except OperationTimeout:
+            emit({"type": "model_end", "status": "timed_out", "usage_incomplete": True})
             if self._remaining_or_zero(deadline) <= 0:
                 raise DeadlineExceeded("任务总时间已用尽") from None
             raise ModelTimeout("模型响应超时") from None
+        except ModelTimeout:
+            emit({"type": "model_end", "status": "timed_out", "usage_incomplete": True})
+            raise
+        except Exception:
+            emit({"type": "model_end", "status": "error", "usage_incomplete": True})
+            raise
         if cancel_event.is_set():
             # A decision that arrives after cancellation is never executed.
+            emit({"type": "model_end", "status": "cancelled", "usage_incomplete": True})
             raise TaskCancelled(self._cancel_reason or "任务已取消")
         return reply
 

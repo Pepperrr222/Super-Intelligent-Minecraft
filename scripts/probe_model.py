@@ -2,6 +2,7 @@
 from __future__ import annotations
 import argparse
 import asyncio
+from dataclasses import replace
 import json
 from pathlib import Path
 import sys
@@ -16,10 +17,10 @@ from sim_agent.domain.errors import AgentError
 
 async def probe(config_path: Path) -> dict:
     config = load_config(config_path)
-    record = {"provider": config.model.provider, "model": config.model.name, "thinking": config.model.thinking}
+    record = {"provider": config.model.provider, "model": config.model.name, "thinking": False, "stream": False}
     started = time.monotonic()
     try:
-        result = await DeepSeekClient(config.model, max_tokens=128).complete([
+        result = await DeepSeekClient(replace(config.model, thinking=False, stream=False), max_tokens=128).complete([
             {"role": "system", "content": '只输出一个合法 JSON 对象，不要 Markdown、说明或特殊标记。输出示例：{"ok":true}'},
             {"role": "user", "content": '请输出这个 JSON 对象：{"ok":true}'}
         ], config.model.timeout_seconds)

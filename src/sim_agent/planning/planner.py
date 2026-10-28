@@ -116,6 +116,9 @@ class LLMPlanner:
         self._model = model
 
     async def decide(self, context: dict[str, Any], timeout: float) -> PlannerReply:
+        return await self.decide_observed(context, timeout, None)
+
+    async def decide_observed(self, context, timeout, observer) -> PlannerReply:
         started = time.monotonic()
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
@@ -125,7 +128,11 @@ class LLMPlanner:
                 + json.dumps(context, ensure_ascii=False, separators=(",", ":")),
             },
         ]
-        result = await self._model.complete(messages, timeout)
+        observed = getattr(self._model, "complete_observed", None)
+        if callable(observed):
+            result = await observed(messages, timeout, observer)
+        else:
+            result = await self._model.complete(messages, timeout)
         return PlannerReply(
             text=result.text,
             usage=result.usage,

@@ -17,7 +17,8 @@
   "model": {
     "base_url": "https://api.deepseek.com",
     "provider": "deepseek",
-    "thinking": false,
+    "thinking": true,
+    "stream": true,
     "max_tokens": 1600,
     "name": "YOUR_MODEL_ID",
     "key_file": ".secrets/model.key",

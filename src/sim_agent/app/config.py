@@ -43,6 +43,7 @@ class ModelConfig:
     provider: str = "generic"
     thinking: bool | None = None
     max_tokens: int = 1600
+    stream: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -162,6 +163,9 @@ def load_config(path: str | Path) -> AppConfig:
     max_tokens = model_raw.get("max_tokens", 1600)
     if isinstance(max_tokens, bool) or not isinstance(max_tokens, int) or not 128 <= max_tokens <= 8192:
         raise ConfigError("model.max_tokens 必须是128..8192的整数")
+    stream = model_raw.get("stream", False)
+    if not isinstance(stream, bool):
+        raise ConfigError("model.stream 必须为布尔值")
     key_file = Path(key_file_raw).expanduser()
     if not key_file.is_absolute():
         key_file = config_path.parent / key_file
@@ -212,6 +216,7 @@ def load_config(path: str | Path) -> AppConfig:
             provider=provider,
             thinking=thinking,
             max_tokens=max_tokens,
+            stream=stream,
         ),
         runtime_dir=runtime_path,
         config_path=config_path,

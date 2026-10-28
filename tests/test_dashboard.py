@@ -15,6 +15,41 @@ from test_planner import FakeBackend, ScriptedPlanner, make_config, observation
 
 
 class DashboardTests(unittest.TestCase):
+    def test_call_history_keeps_different_calls_separate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            logs = RuntimeLogs(root)
+            logs.trace({"type": "task_start", "task_id": "t", "task": "测试调用历史"})
+            ids = ["call-" + char * 32 for char in ["a", "b"]]
+            for number, call_id in enumerate(ids, 1):
+                logs.model_event({"type": "model_start", "call_id": call_id, "task_id": "t", "step": number})
+                logs.model_event({"type": "model_delta", "call_id": call_id, "channel": "reasoning", "text": str(number)})
+                logs.model_event({"type": "model_end", "call_id": call_id, "status": "completed"})
+            from sim_agent.app.dashboard import read_model_call
+            self.assertEqual({c["call_id"] for c in snapshot(root)["model_calls"]}, set(ids))
+            self.assertEqual([read_model_call(root, c)["reasoning"] for c in ids], ["1", "2"])
+            logs.close()
+
+    def test_explicit_model_output_archive_is_readable_but_paths_are_restricted(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            logs = RuntimeLogs(root)
+            call_id = "call-" + "a" * 32
+            logs.model_event({"type": "model_start", "call_id": call_id, "task_id": "task", "thinking": True})
+            logs.model_event({"type": "model_delta", "call_id": call_id, "channel": "reasoning", "text": "接口返回的思考原文"})
+            logs.close()  # An unfinished call is preserved as interrupted.
+            server = DashboardServer(root, port=0).start()
+            try:
+                with urllib.request.urlopen(server.url + "/api/calls/" + call_id) as response:
+                    call = json.load(response)
+                self.assertEqual(call["reasoning"], "接口返回的思考原文")
+                self.assertEqual(call["status"], "interrupted")
+                for path in ["../../config.json", "%2e%2e%2fconfig.json", "call-invalid"]:
+                    with self.assertRaises(urllib.error.HTTPError):
+                        urllib.request.urlopen(server.url + "/api/calls/" + path)
+            finally:
+                server.close()
+
     def test_partial_lines_and_large_history_are_bounded(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

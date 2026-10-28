@@ -34,10 +34,13 @@ class AuditedClient:
         self.errors = 0
 
     async def complete(self, messages, timeout):
+        return await self.complete_observed(messages, timeout, None)
+
+    async def complete_observed(self, messages, timeout, observer):
         self.attempts += 1
         started = time.monotonic()
         try:
-            result = await self.model.complete(messages, timeout)
+            result = await self.model.complete_observed(messages, timeout, observer)
         except Exception as exc:
             self.errors += 1
             self.log.write({"attempt": self.attempts, "status": "failed", "error_type": type(exc).__name__})

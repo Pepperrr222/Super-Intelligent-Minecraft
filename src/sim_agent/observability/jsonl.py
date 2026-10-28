@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import threading
+import re
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
@@ -82,6 +84,11 @@ class RuntimeLogs:
         self.tasks = JsonlLog(self.runtime_dir / "tasks.jsonl")
         self.usage = JsonlLog(self.runtime_dir / "usage.jsonl")
         self.traces = JsonlLog(self.runtime_dir / "trace.jsonl")
+        self.calls_dir = self.runtime_dir / "model-calls"
+        self.calls_dir.mkdir(parents=True, exist_ok=True)
+        self.call_index = JsonlLog(self.calls_dir / "index.jsonl")
+        self._calls = {}
+        self._closed = False
 
     def request(self, record: Mapping[str, Any]) -> None:
         self.requests.write({"ts": utc_now(), **dict(record)})
@@ -95,11 +102,65 @@ class RuntimeLogs:
     def trace(self, record: Mapping[str, Any]) -> None:
         self.traces.write({"ts": utc_now(), **dict(record)})
 
+    def model_event(self, record: Mapping[str, Any]) -> None:
+        """Archive approved provider-output channels separately from generic logs."""
+        if self._closed:
+            return
+        call_id = record.get("call_id", "")
+        if not isinstance(call_id, str) or not re.fullmatch(r"call-[a-f0-9]{32}", call_id):
+            raise ValueError("Invalid model call id")
+        kind = record.get("type")
+        if kind == "model_start":
+            meta = {k: record[k] for k in ("call_id", "task_id", "step", "model", "provider", "thinking", "stream") if k in record}
+            meta.update(status="receiving", ts=utc_now(), reasoning_chars=0, decision_chars=0)
+            state = {"meta": meta, "reasoning": [], "decision": [], "last_publish": time.monotonic(),
+                     "log": JsonlLog(self.calls_dir / (call_id + ".jsonl"))}
+            self._calls[call_id] = state
+            state["log"].write({"type": "start", **meta})
+            self.call_index.write(meta)
+            self.trace({"type": "model_start", **meta})
+            return
+        state = self._calls.get(call_id)
+        if state is None:
+            return
+        meta = state["meta"]
+        if kind == "model_delta":
+            channel, text = record.get("channel"), record.get("text")
+            if channel not in {"reasoning", "decision"} or not isinstance(text, str):
+                raise ValueError("Invalid model output channel")
+            state[channel].append(text)
+            meta[channel + "_chars"] += len(text)
+            state["log"].write({"type": "delta", "channel": channel, "text": text})
+            if time.monotonic() - state["last_publish"] >= 0.3:
+                meta["ts"] = utc_now()
+                self.call_index.write(meta)
+                state["last_publish"] = time.monotonic()
+        elif kind == "model_end":
+            for key in ("status", "finish_reason", "reasoning_status", "usage", "usage_incomplete"):
+                if key in record:
+                    meta[key] = record[key]
+            meta["ts"] = utc_now()
+            meta.setdefault("reasoning_status", "provided" if meta["reasoning_chars"] else
+                            ("disabled" if meta.get("thinking") is False else "not_provided"))
+            state["log"].write({"type": "end", **meta})
+            state["log"].close()
+            payload = {**meta, "reasoning": "".join(state["reasoning"]), "decision": "".join(state["decision"])}
+            temporary = self.calls_dir / (call_id + ".tmp")
+            temporary.write_text(json.dumps(redact(payload), ensure_ascii=False), encoding="utf-8")
+            temporary.replace(self.calls_dir / (call_id + ".json"))
+            self.call_index.write(meta)
+            self.trace({"type": "model_end", **meta})
+            del self._calls[call_id]
+
     def close(self) -> None:
+        for call_id in list(self._calls):
+            self.model_event({"type": "model_end", "call_id": call_id, "status": "interrupted", "usage_incomplete": True})
+        self._closed = True
         self.requests.close()
         self.tasks.close()
         self.usage.close()
         self.traces.close()
+        self.call_index.close()
 
 
 class NullLogs:
@@ -115,6 +176,9 @@ class NullLogs:
         return None
 
     def trace(self, record: Mapping[str, Any]) -> None:
+        return None
+
+    def model_event(self, record: Mapping[str, Any]) -> None:
         return None
 
     def close(self) -> None:

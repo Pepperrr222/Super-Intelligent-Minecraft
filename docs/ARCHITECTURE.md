@@ -45,7 +45,9 @@ app 组装具体实现。execution 使用 Planner/Backend 协议和领域对象�
 
 Python 与 Node 分进程，使用 stdio JSONL。Node 端库输出统一送 stderr，避免污染协议。
 
-observability 将公开决策摘要写入独立 trace.jsonl：规划请求、模型提案、目标锁定、执行反馈和最终复核分开记录。app/dashboard.py 提供本机只读 HTTP 面板，只投影有界日志，不接触模型密钥或游戏操作入口。模型说明只用于解释提案，不作为事实或完成依据，见 DASHBOARD.md。
+模型适配层将接口返回的 reasoning_content 与最终 content 分成 reasoning / decision 输出通道，通过可选观测回调传到 observability。每次调用以独立 call_id 归档到 model-calls/，增量日志保留进行中的文本，结束后原子写入完整快照。普通 trace.jsonl 只保存调用元数据及决策、执行和验证事件，避免大量输出片段挤掉任务时间线。
+
+app/dashboard.py 提供本机只读 HTTP 面板，可按调用读取完整快照或尚在生成的增量日志；不接触模型密钥或游戏操作入口。思考不进入动作解析或任务长期经验。只有完整结束的最终输出才能交给原有决策校验器；截断、断流或取消均不执行部分决策，停止时先封存记录并丢弃迟到片段，见 DASHBOARD.md。
 
 ## 一次任务
 

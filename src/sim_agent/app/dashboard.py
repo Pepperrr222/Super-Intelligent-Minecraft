@@ -6,6 +6,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
 import threading
+import re
 from urllib.parse import urlsplit
 
 from sim_agent.app.config import load_config
@@ -13,6 +14,44 @@ from sim_agent.observability.jsonl import redact
 
 MAX_TAIL_BYTES = 2_000_000
 MAX_EVENTS = 600
+CALL_ID = re.compile(r"call-[a-f0-9]{32}")
+MAX_CALL_BYTES = 16_000_000
+
+
+def read_model_call(runtime_dir: Path, call_id: str) -> dict | None:
+    if not CALL_ID.fullmatch(call_id):
+        return None
+    directory = runtime_dir / "model-calls"
+    completed = directory / (call_id + ".json")
+    try:
+        with completed.open("rb") as stream:
+            payload = stream.read(MAX_CALL_BYTES + 1)
+        if len(payload) > MAX_CALL_BYTES:
+            return {"call_id": call_id, "status": "view_limit", "view_limited": True}
+        return redact(json.loads(payload))
+    except (OSError, ValueError, UnicodeDecodeError):
+        pass
+    try:
+        with (directory / (call_id + ".jsonl")).open("rb") as stream:
+            payload = stream.read(MAX_CALL_BYTES + 1)
+    except OSError:
+        return None
+    limited = len(payload) > MAX_CALL_BYTES
+    result = {"call_id": call_id, "status": "receiving", "reasoning": "", "decision": "", "view_limited": limited}
+    parts = {"reasoning": [], "decision": []}
+    for line in payload[:MAX_CALL_BYTES].splitlines(keepends=True):
+        if not line.endswith(b"\n"):
+            continue
+        try:
+            event = json.loads(line)
+        except (ValueError, UnicodeDecodeError):
+            continue
+        if event.get("type") in {"start", "end"}:
+            result.update({k: v for k, v in event.items() if k != "type"})
+        elif event.get("type") == "delta" and event.get("channel") in parts and isinstance(event.get("text"), str):
+            parts[event["channel"]].append(event["text"])
+    result.update({channel: "".join(values) for channel, values in parts.items()})
+    return redact(result)
 
 
 def read_tail(path: Path) -> tuple[list[dict], bool]:
@@ -87,9 +126,17 @@ def snapshot(runtime_dir: Path) -> dict:
             value = (event.get("usage") or {}).get("total_tokens", 0)
             usage["total_tokens"] += value if isinstance(value, int) and value >= 0 else 0
     ordered = sorted(tasks.values(), key=lambda t: t.get("updated_at") or "", reverse=True)[:20]
+    call_records, calls_clipped = read_tail(runtime_dir / "model-calls/index.jsonl")
+    calls = {}
+    visible_tasks = {t["task_id"] for t in ordered}
+    for record in call_records:
+        call_id = record.get("call_id")
+        if isinstance(call_id, str) and CALL_ID.fullmatch(call_id) and record.get("task_id") in visible_tasks:
+            calls[call_id] = redact(record)
     return {"tasks": ordered, "events": events, "updated_at": events[-1].get("ts") if events else None,
-            "limited_history": clipped or legacy_clipped or len(records) > MAX_EVENTS,
-            "summary_only": True, "stream": "trace" if records else "legacy"}
+            "model_calls": sorted(calls.values(), key=lambda c: c.get("ts", ""), reverse=True),
+            "limited_history": clipped or legacy_clipped or calls_clipped or len(records) > MAX_EVENTS,
+            "summary_only": False, "stream": "trace" if records else "legacy"}
 
 
 class DashboardServer:
@@ -107,6 +154,13 @@ class DashboardServer:
                     payload, content_type = page, "text/html; charset=utf-8"
                 elif route == "/api/snapshot":
                     payload = json.dumps(snapshot(runtime), ensure_ascii=False).encode("utf-8")
+                    content_type = "application/json; charset=utf-8"
+                elif route.startswith("/api/calls/"):
+                    call = read_model_call(runtime, route[len("/api/calls/"):])
+                    if call is None:
+                        self.send_error(404)
+                        return
+                    payload = json.dumps(call, ensure_ascii=False).encode("utf-8")
                     content_type = "application/json; charset=utf-8"
                 else:
                     self.send_error(404)
