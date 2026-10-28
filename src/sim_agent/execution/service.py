@@ -7,7 +7,7 @@ import time
 from typing import Any, Callable
 
 from sim_agent.app.config import AppConfig
-from sim_agent.domain.errors import AgentError, TransportError
+from sim_agent.domain.errors import AgentError, TransportError, ValidationError
 from sim_agent.observability.jsonl import NullLogs, RuntimeLogs
 from sim_agent.planning.planner import Planner
 from sim_agent.execution.runner import TaskOutcome, TaskRunner
@@ -182,18 +182,15 @@ class AgentService:
                 self._current = asyncio.create_task(self._resume_task(prior, username))
                 self._current.add_done_callback(self._consume_task_result)
                 return "started"
-            if command.startswith("回答") and pending and self._last_outcome is None:
-                from types import SimpleNamespace
-                p = pending[0]
-                self._last_outcome = SimpleNamespace(end_state="needs_clarification" if p["status"]=="waiting_input" else "interrupted",
-                    message=(p.get("question") or {}).get("text",p.get("last_message","")), goal=None,
-                    steps=[],final_observation=(p.get("state") or {}).get("final_observation"),root_task_id=p["root_task_id"])
             if pending and not command.startswith(("回答", "纠正")):
                 await self._say("有未结束任务，请先回答、继续或停止。", quiet=False)
                 return "busy"
         clarification_context = None
         if command.startswith("回答"):
             answer = command[2:].strip(" ：:")
+            if self._hierarchical and not self._busy and self._runner.pending():
+                if not answer: return "empty"
+                return await self._continue_pending(answer,username,message,answer_only=True)
             if self._busy or not self._last_outcome or self._last_outcome.end_state != "needs_clarification":
                 await self._say("当前没有等待回答的澄清问题。", quiet=False)
                 return "idle"
@@ -216,6 +213,8 @@ class AgentService:
                 await self._say("请说明如何纠正，例如：!agent 纠正 改放入坐标8 -60 0的箱子。", quiet=False)
                 return "empty"
             if not self._busy:
+                if self._hierarchical and self._runner.pending():
+                    return await self._continue_pending(correction,username,message,correction=True)
                 await self._say("当前没有执行中的任务。", quiet=False)
                 return "idle"
             if self._revision_task and not self._revision_task.done():
@@ -266,6 +265,28 @@ class AgentService:
         self._last_outcome=None; self._pending_stop=False
         self._current=asyncio.create_task(self._chat_task(command,self._task_version,None,requester,raw_chat))
         self._current.add_done_callback(self._consume_task_result)
+
+    async def _continue_pending(self, command, requester, raw_chat, *, correction=False, answer_only=False):
+        """Attach input to the authoritative nonterminal root, including after restart."""
+        if self._busy: raise ValidationError("任务已开始运行，请重新发送补充说明")
+        pending=self._runner.pending()
+        if len(pending)!=1: raise ValidationError("没有唯一可接续的未结束任务，请先确认任务或使用停止")
+        prior=pending[0]
+        if answer_only and (prior["status"]!="waiting_input" or not prior.get("question")):
+            await self._say("当前没有等待回答的澄清问题；暂停任务可用继续或补充说明。",quiet=False)
+            return "idle"
+        continuation={"original_task":prior["request"]["command_text"],
+                      "previous_root_task_id":prior["root_task_id"]}
+        if correction: continuation["correction"]=command
+        elif prior["status"]=="waiting_input":
+            continuation.update(answer=command,question=prior["question"]["text"])
+        else: continuation["supplement"]=command
+        self._task_version+=1
+        self._task_text=prior["request"]["command_text"]
+        self._busy=True; self._pending_stop=False; self._last_outcome=None
+        self._current=asyncio.create_task(self._chat_task(command,self._task_version,continuation,requester,raw_chat))
+        self._current.add_done_callback(self._consume_task_result)
+        return "started"
 
     async def _chat_task(self, command: str, version: int = 1, continuation: dict | None = None, requester: str | None = None, raw_chat: str | None = None) -> None:
         try:

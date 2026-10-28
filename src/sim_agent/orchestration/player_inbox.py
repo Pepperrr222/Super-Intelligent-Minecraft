@@ -4,7 +4,7 @@ import copy
 import uuid
 
 from sim_agent.domain.contracts import parse_proposal, text_value, refs
-from sim_agent.domain.errors import ValidationError, OperationTimeout
+from sim_agent.domain.errors import AgentError, ValidationError, OperationTimeout
 
 
 class PlayerInbox:
@@ -45,8 +45,9 @@ class PlayerInbox:
             except asyncio.CancelledError:
                 if self.closed: return
             except Exception as exc:
-                self.service._logs.trace({"type":"player_message_failed","error_type":type(exc).__name__})
-                await self.service._say("这条消息未能处理，当前任务未被自动替换。请重试或使用停止。",quiet=False)
+                detail=str(exc) if isinstance(exc,AgentError) else "消息调度发生内部错误"
+                self.service._logs.trace({"type":"player_message_failed","error_type":type(exc).__name__,"message":detail})
+                await self.service._say("这条消息未能处理："+detail+"。当前任务未被自动替换。",quiet=False)
             finally:
                 self.decision_job=None
                 self.start_next()
@@ -56,6 +57,9 @@ class PlayerInbox:
         version=s._task_version
         active=s._current
         snap=copy.deepcopy(runner.snap) if runner.snap else None
+        if not runner.active:
+            pending=runner.pending()
+            if len(pending)==1: snap=pending[0]
         attempt=(runner.stage or {}).get("attempt_id")
         if runner.active and runner.budget:
             runner.budget.take("call")
@@ -121,9 +125,11 @@ class PlayerInbox:
             await s._say("已加入待执行任务。",quiet=False)
             self.start_next()
         elif kind=="correct":
-            if not s.busy: raise ValidationError("没有可纠正的运行任务")
-            s._task_version+=1
-            await s._correct_task(command,s._task_version,username,raw_chat=raw)
+            if s.busy:
+                s._task_version+=1
+                await s._correct_task(command,s._task_version,username,raw_chat=raw)
+            else:
+                await s._continue_pending(command,username,raw)
         elif kind in {"replace","pause","end"}:
             current=s._current
             if s.busy:

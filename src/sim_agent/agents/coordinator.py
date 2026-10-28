@@ -95,6 +95,8 @@ clarify {text}: ask when intent, replacement priority or task target is unclear;
 queue {}: preserve the EXACT incoming request as a new task to run after current work.
 replace {}: stop current task safely then start the EXACT incoming request as a new task.
 correct {}: stop and amend current task with the EXACT incoming message, preserving original intent and completed effects.
+An unfinished task includes waiting_input and interrupted, not just a running body. Use correct to attach a clarification
+or supplement to these states; the program resumes the SAME root and preserves constraints. Don't replace it as a new task.
 pause {}: stop the body and retain a recoverable interrupted task. resume {}: resume the interrupted task.
 cancel_stage {}: stop only the current Worker, preserve effects, let root Coordinator replan.
 end {}: cancel the whole active task; this never declares success.

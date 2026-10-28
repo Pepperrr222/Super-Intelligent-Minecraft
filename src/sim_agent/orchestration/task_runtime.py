@@ -659,7 +659,8 @@ class TaskRuntime(ExecutionController):
             self.snap["task_id"]=self._task_id
             if not resume_root:
                 a={"id":uid("amendment"),"type":"correction" if continuation_context.get("correction") else "clarification",
-                   "author":requested_by,"text":continuation_context.get("correction") or continuation_context.get("answer") or task_text,
+                   "author":requested_by,"text":continuation_context.get("correction") or continuation_context.get("answer") or continuation_context.get("supplement") or task_text,
+                   "raw_chat":raw_chat or task_text,
                    "received_at":utc_now(),"question_id":(previous.get("question") or {}).get("id")}
                 self.snap["request"]["amendments"].append(a)
                 self.snap["task_version"]+=1; self.snap["contract"]=None; self.snap["question"]=None
