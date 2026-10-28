@@ -29,6 +29,7 @@ class AgentService:
         emit: Emit | None = None,
         chat_progress: bool = True,
         memory: ExperienceStore | None = None,
+        action_debug: bool = False,
     ) -> None:
         self._backend = backend
         self._config = config
@@ -45,7 +46,9 @@ class AgentService:
         self._revision_task: asyncio.Task[None] | None = None
         self._say_lock = asyncio.Lock()
         self._last_say = 0.0
-        self._runner = TaskRunner(
+        self._action_debug=action_debug
+        from sim_agent.execution.action_debug import ActionDebugRunner
+        self._runner = ActionDebugRunner(backend,config,logs,notify=self._notify_progress) if action_debug else TaskRunner(
             backend,
             planner,
             config,
@@ -53,7 +56,7 @@ class AgentService:
             notify=self._notify_progress,
             memory=memory,
         )
-        self._hierarchical = config.orchestration.mode == "hierarchical"
+        self._hierarchical = config.orchestration.mode == "hierarchical" and not action_debug
         self._raw_chat = ""
         self._entry_lock = asyncio.Lock()
         self._inbox = None
@@ -185,6 +188,9 @@ class AgentService:
             if pending and not command.startswith(("回答", "纠正")):
                 await self._say("有未结束任务，请先回答、继续或停止。", quiet=False)
                 return "busy"
+        if self._action_debug and command.startswith(("回答","纠正","继续")):
+            await self._say("动作调试只接受完整的collect/goto/停止命令，不接续或自动规划任务。",quiet=False)
+            return "unsupported"
         clarification_context = None
         if command.startswith("回答"):
             answer = command[2:].strip(" ：:")

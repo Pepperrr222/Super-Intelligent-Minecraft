@@ -54,6 +54,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=__version__)
     parser.add_argument("--planner", choices=["llm", "rules"], default="llm", help="llm 为云模型；rules 为无需密钥的有限中文语法基线")
     parser.add_argument("--orchestration", choices=["legacy", "hierarchical"], help="显式选择两层架构；只覆盖本次进程，不改配置文件")
+    parser.add_argument("--action-debug", action="store_true", help="零模型单动作调试：collect/goto/停止，完整语法，不自动规划")
     parser.add_argument("--dashboard", action="store_true", help="同时启动只读规划面板（默认 http://127.0.0.1:8765）")
     parser.add_argument("--dashboard-port", type=int, default=8765, help="内置规划面板端口")
     return parser
@@ -89,9 +90,13 @@ async def _run(args: argparse.Namespace, config: Any, goal_json: dict[str, Any] 
     if config.orchestration.mode == "hierarchical" and (args.planner == "rules" or goal_json is not None):
         raise ConfigError("hierarchical使用自然语言与llm；rules/--goal-json请显式选择legacy")
     logs = RuntimeLogs(config.runtime_dir)
-    memory = ExperienceStore(config.runtime_dir / "memory.sqlite3")
+    debug=getattr(args,"action_debug",False)
+    memory = None if debug else ExperienceStore(config.runtime_dir / "memory.sqlite3")
     backend = ExecutorClient(config, logs)
-    if config.orchestration.mode == "hierarchical":
+    if debug:
+        if goal_json is not None: raise ConfigError("动作调试的验收由程序生成，不接受--goal-json")
+        planner=None
+    elif config.orchestration.mode == "hierarchical":
         if args.planner == "rules":
             raise ConfigError("hierarchical不支持rules；显式legacy模式运行规则基线")
         if goal_json is not None:
@@ -108,6 +113,7 @@ async def _run(args: argparse.Namespace, config: Any, goal_json: dict[str, Any] 
         emit=lambda text: print(text, flush=True),
         chat_progress=args.task is None,
         memory=memory,
+        action_debug=debug,
     )
     started = False
     dashboard = None
@@ -158,7 +164,7 @@ async def _run(args: argparse.Namespace, config: Any, goal_json: dict[str, Any] 
         except Exception:
             pass
         logs.close()
-        memory.close()
+        if memory is not None: memory.close()
         if dashboard is not None:
             dashboard.close()
 
@@ -169,7 +175,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.goal_json is not None and args.task is None:
         parser.error("--goal-json 只能与 --task 一起使用")
     try:
-        config = load_config(Path(args.config))
+        if args.action_debug and (args.orchestration is not None or args.goal_json is not None):
+            raise ConfigError("--action-debug独立选择零模型入口，不与--orchestration/--goal-json混用")
+        config = load_config(Path(args.config),action_debug=args.action_debug)
+        if args.action_debug:
+            from dataclasses import replace
+            config=replace(config,runtime_dir=config.runtime_dir/'action-debug')
         if args.orchestration:
             from dataclasses import replace
             config = replace(config, orchestration=replace(config.orchestration, mode=args.orchestration))

@@ -15,6 +15,8 @@
 
 新版业务协议离线演示入口为 Python 模块 sim_agent.app.hierarchical_demo，需 PYTHONPATH=src。命令见 [架构修订](../docs/implementation/COORDINATOR_AUTONOMY.md)。
 
+显式 dev.py run --action-debug 是例外：不创建模型客户端，直接调试原木采集、坐标移动、停止。详见 [零模型动作调试](../docs/ACTION_DEBUG.md)。
+
 ## 游戏测试服与验收
 
 | 入口 | 用途 |

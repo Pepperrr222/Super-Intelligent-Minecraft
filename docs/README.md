@@ -16,6 +16,8 @@
 
 ## 使用与维护
 
+- [零模型单动作调试](ACTION_DEBUG.md)：独立测试采集、移动、停止，不进入模型规划。
+
 - [安装与开发](DEVELOPMENT.md)
 - [DeepSeek / SiliconFlow 配置](MODELS.md)
 - [规划面板](DASHBOARD.md)

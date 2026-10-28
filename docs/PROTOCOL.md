@@ -1,5 +1,7 @@
 # JSONL protocol v0.2
 
+单动作诊断 --action-debug 复用本文的 observe、act、action_status、stop 协议，不新增 Node 字段。collect.count 仍表示方块数；原木调试任务由 Python 额外验证目标库存增量与挖掘证据。参见 [动作调试](ACTION_DEBUG.md)。
+
 Minecraft Java 1.21.1, Python orchestrator and Node Mineflayer executor. Start the child with `node executor/server.js --config <absolute-config-path>`.
 
 ## Envelope and lifecycle

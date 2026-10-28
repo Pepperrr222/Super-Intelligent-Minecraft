@@ -1,5 +1,7 @@
 # 两层原版 Agent 运行说明
 
+只想独立测试动作、排除模型干扰时使用 [--action-debug](../ACTION_DEBUG.md)，这是零模型单动作入口，不能与本页 --orchestration hierarchical 混用。
+
 此文件说明当前新路径；完整目标见[实现手册](VANILLA_AGENT_V1.md)，实际验证进度见[PROGRESS.md](PROGRESS.md)。发布门槛未全部通过前默认legacy，新路径显式启用。
 
 ## 启动

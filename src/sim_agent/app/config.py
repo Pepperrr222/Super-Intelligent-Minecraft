@@ -119,7 +119,7 @@ def _number(
     return number
 
 
-def load_config(path: str | Path) -> AppConfig:
+def load_config(path: str | Path, *, action_debug: bool = False) -> AppConfig:
     config_path = Path(path).expanduser().resolve()
     try:
         text = config_path.read_text(encoding="utf-8")
@@ -144,7 +144,8 @@ def load_config(path: str | Path) -> AppConfig:
 
     mc_raw = _section(root, "minecraft")
     agent_raw = _section(root, "agent")
-    model_raw = _section(root, "model")
+    model_raw = (_section(root, "model") if not action_debug else
+                 {"base_url":"http://127.0.0.1","name":"disabled","key_file":".secrets/unused-debug.key","timeout_seconds":1})
 
     host = _text(mc_raw, "host", "minecraft", max_len=253)
     port = _int(mc_raw, "port", "minecraft", 1, 65535)
@@ -212,6 +213,9 @@ def load_config(path: str | Path) -> AppConfig:
     if set(orchestration_raw) - set(defaults.__dataclass_fields__):
         raise ConfigError("orchestration包含未知配置")
     values = {name: orchestration_raw.get(name, getattr(defaults, name)) for name in defaults.__dataclass_fields__}
+    if action_debug:
+        values["mode"]="legacy"  # Explicit debug selection, never constructs a legacy planner.
+        mode="B0"
     if values["mode"] not in {"legacy", "hierarchical"} or values["recovery"] != "explicit":
         raise ConfigError("orchestration模式仅支持legacy/hierarchical，恢复必须explicit")
     for name in ("max_model_calls", "max_plan_stages", "max_replans", "max_local_failures", "max_schema_repairs", "max_contract_repairs"):

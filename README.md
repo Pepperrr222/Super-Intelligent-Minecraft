@@ -61,6 +61,14 @@ agent.owner 设为游戏用户名时只接受该玩家；设为 "*" 时接受所
 
 ## 本地验证
 
+需要单独排查游戏动作时，使用 [零模型单动作调试](docs/ACTION_DEBUG.md)：
+
+```powershell
+.\.venv\Scripts\python.exe scripts/dev.py run --config config.json --action-debug --dashboard
+```
+
+游戏内输入 `!agent collect oak_log 4`、`!agent goto 10 -60 5` 或 `!agent 停止`。该入口不创建模型客户端，可不填写 model 配置，不支持复杂任务或自动补料；采集第一版限定明确树种的原木。
+
 以下命令不调用云模型：
 
 ```bash

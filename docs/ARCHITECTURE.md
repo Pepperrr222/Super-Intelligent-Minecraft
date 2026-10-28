@@ -1,5 +1,9 @@
 # 系统架构
 
+## 单动作诊断入口
+
+显式 --action-debug 通过 domain/debug_command.py 完整解析单动作，由 execution/action_debug.py 调用同一 ExecutionController 和 Node 动作实现。无模型、无经验检索、无规划循环；未确认的动作效果阻止后续变更。默认模式和既有双层调度不变。范围和验证见 [动作调试](ACTION_DEBUG.md)。
+
 ## 两层原版路径（显式启用）
 
 当前角色设计见 [Coordinator 自主规划修订](implementation/COORDINATOR_AUTONOMY.md)：Coordinator 自主理解、调查和调度，不接收底层动作协议；Worker 编译自然语言完成标准并执行；取消独立 LLM Reviewer，保留程序控制和验证。business_context.py 提供最高层事实视图。
