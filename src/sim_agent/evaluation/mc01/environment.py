@@ -7,6 +7,7 @@ import shutil
 import socket
 from .setup import ASSETS
 from .rcon import Rcon,parse_snbt
+from .recording import ReplayRecording,install_recording
 
 ITEMS="wooden_axe wooden_pickaxe oak_log oak_planks stick crafting_table".split()
 PUBLIC_SCENE=("初始事实：空背包，普通难度。橡树位于x=-20至-8,z=8至20，地面站立高度y=-60。"
@@ -28,12 +29,14 @@ def fixture_commands(task_id="MC-01"):
     return out
 
 class OwnedServer:
-    def __init__(self,folder,java="java",accept_eula=False):
+    def __init__(self,folder,java="java",accept_eula=False,record=False):
         self.folder=Path(folder).resolve();self.java=java;self.accept_eula=accept_eula;self.port=free_port();self.rcon_port=free_port();self.password=secrets.token_hex(16)
         self.proc=None;self.reader=None;self.rcon=None
+        self.recording=ReplayRecording(self) if record else None
     async def __aenter__(self):
         if not self.accept_eula:raise RuntimeError("Use --accept-eula after agreeing to https://www.minecraft.net/eula")
         self.folder.mkdir(parents=True,exist_ok=False);shutil.copy2(ASSETS/"server.jar",self.folder/"server.jar")
+        if self.recording:install_recording(self.folder)
         (self.folder/"eula.txt").write_text("eula=true\n")
         properties=["server-ip=127.0.0.1",f"server-port={self.port}","online-mode=false","enforce-secure-profile=false","level-name=world","level-type=minecraft:flat",
             'generator-settings={"biome":"minecraft:plains","layers":[{"block":"minecraft:bedrock","height":1},{"block":"minecraft:dirt","height":2},{"block":"minecraft:grass_block","height":1}]}',
@@ -41,7 +44,8 @@ class OwnedServer:
             "enable-rcon=true",f"rcon.port={self.rcon_port}",f"rcon.password={self.password}","broadcast-rcon-to-ops=false"]
         (self.folder/"server.properties").write_text("\n".join(properties),encoding="utf-8")
         ready=asyncio.Event()
-        self.proc=await asyncio.create_subprocess_exec(self.java,"-Xms512M","-Xmx1536M","-jar","server.jar","nogui",cwd=self.folder,
+        launch="fabric-server-launch.jar" if self.recording else "server.jar"
+        self.proc=await asyncio.create_subprocess_exec(self.java,"-Xms512M","-Xmx1536M","-jar",launch,"nogui",cwd=self.folder,
             stdin=asyncio.subprocess.PIPE,stdout=asyncio.subprocess.PIPE,stderr=asyncio.subprocess.STDOUT)
         async def read():
             with (self.folder/"server.log").open("w",encoding="utf-8") as f:
@@ -57,6 +61,10 @@ class OwnedServer:
         except BaseException:await self.__aexit__(None,None,None);raise
         return self
     async def command(self,text):return await asyncio.to_thread(self.rcon.command,text)
+    async def start_recording(self,username):
+        if self.recording:await self.recording.start(username)
+    async def stop_recording(self):
+        if self.recording:await self.recording.stop()
     async def commands(self,commands):
         for text in commands:await self.command(text)
     async def capture(self,username,episode_id):
@@ -79,3 +87,4 @@ class OwnedServer:
             try:self.proc.stdin.write(b"stop\n");await self.proc.stdin.drain();await asyncio.wait_for(self.proc.wait(),30)
             except (BrokenPipeError,ConnectionResetError,asyncio.TimeoutError):self.proc.kill();await self.proc.wait()
         if self.reader:await self.reader
+        if self.recording:self.recording.save_manifest()

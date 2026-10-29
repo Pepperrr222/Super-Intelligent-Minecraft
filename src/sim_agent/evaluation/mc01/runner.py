@@ -37,7 +37,7 @@ async def episode(task,args,directory):
         "mode":args.orchestration+"/"+args.planner,"budget":task["budget"],"predicate_results":[],"invalid_reason":None}
     service=None;logs=None;memory=None;pending=None;started=time.monotonic()
     try:
-        async with OwnedServer(directory/"server",args.java,args.accept_eula) as server:
+        async with OwnedServer(directory/"server",args.java,args.accept_eula,record=getattr(args,"record",False)) as server:
             await server.commands(fixture_commands(task["id"]))
             original=load_config(args.config.resolve());username="Bench"+secrets.token_hex(4)
             mc=replace(original.minecraft,host="127.0.0.1",port=server.port,username=username,version="1.21.1",auth="offline",world_id=directory.name)
@@ -52,6 +52,7 @@ async def episode(task,args,directory):
             planner=AgentTeam(model) if args.orchestration=="hierarchical" else RulePlanner() if args.planner=="rules" else LLMPlanner(model)
             service=AgentService(backend,planner,config,logs,emit=lambda text:None,chat_progress=False,memory=memory)
             await service.start();await server.commands([f"tp {username} 0 -60 0",f"clear {username}"])
+            await server.start_recording(username)
             instruction=task["player_prompt"]+"原木按本回合累计采集量计数，允许消耗；两件工具最终保留在你自己的背包，不用交给我。"
             if args.orchestration=="hierarchical":
                 pending=asyncio.create_task(service.run_single(instruction,public_scene=PUBLIC_SCENE))
@@ -72,6 +73,7 @@ async def episode(task,args,directory):
             await backend.stop()
             state=await server.capture(username,directory.name)
             atomic_json(directory/"evidence.json",state);atomic_json(directory/"agent-outcome.json",outcome)
+            await server.stop_recording()
             result.update(grade(task,state))
             result.update(agent_end_state=outcome.get("end_state"),termination_reason=reason,duration_seconds=round(time.monotonic()-started,2),model_calls=model.calls,usage=outcome.get("usage",{}))
             # Read before disconnecting; cleanup does not become part of the task.
@@ -82,6 +84,10 @@ async def episode(task,args,directory):
         if service:await service.shutdown()
         if memory:memory.close()
         if logs:logs.close()
+        recording=directory/"recording.json"
+        if recording.exists():
+            saved=json.loads(recording.read_text(encoding="utf-8"))
+            result["recording"]={"manifest":"recording.json","status":saved["status"],"files":[f["path"] for f in saved["files"]]}
         atomic_json(directory/"result.json",result)
     return result
 
