@@ -113,3 +113,5 @@ runtime/               本地日志、数据库、测试服与存档，不提交
 ## MC-01 自测入口
 
 新增 [第一个任务的运行说明](benchmarks/mc01/README.md)：原版1.21.1空背包采集10个橡木原木、制作木斧和木镐，真实模型运行与零模型执行器联调分别记录。
+
+可加 `--record` 自动保存 Agent 操作回放：首次 `python scripts/benchmark_mc01.py prepare --record`，运行时 `python scripts/benchmark_mc01.py run --config config.json --accept-eula --record`。录制使用服务端 Fabric + ServerReplay；`.mcpr` 回放可在客户端 ReplayMod 中观看、编辑并导出 MP4，详见上面的运行说明。

@@ -20,6 +20,28 @@ python scripts/benchmark_mc01.py run --config config.json --accept-eula
 
 这会调用配置中的模型。`--accept-eula` 表示你同意 [Minecraft EULA](https://www.minecraft.net/eula)，测试服仅监听本机。模型配置保持原文件不变，游戏连接由脚本指向独立测试服。也可用 `--orchestration legacy` 比较旧规划器。
 
+## 自动录制操作流程
+
+可选的 `--record` 使用 Fabric 服务端和 [ServerReplay 1.2.10+mc1.21.1](https://modrinth.com/mod/server-replay/version/DsQNSbT9)。只增加录制，不增加游戏内容，也不需要额外玩家客户端挂机。首次安装：
+
+```powershell
+python scripts/benchmark_mc01.py prepare --record
+```
+
+之后录制真实模型任务：
+
+```powershell
+python scripts/benchmark_mc01.py run --config config.json --accept-eula --record
+```
+
+录制从场景初始化、清空背包之后开始，覆盖采集、移动、制作、放置和结束检查；任务失败也保存已发生的流程。正常结束显式停止录制，异常退出则由服务端关闭时保存。每轮目录中的 `recording.json` 记录录像路径、开始/停止时间、文件大小和 ReplayMod 元数据；录像位于 `server/recordings/players/<玩家UUID>/*.mcpr`。只有归档包含元数据及非空数据包流才标记 `saved`，这不等于已人工查看或渲染验证。
+
+**`.mcpr` 是游戏回放文件，不能直接当作 MP4 播放。** 在 Minecraft Java 1.21.1 客户端安装 Fabric 和对应版本 [ReplayMod](https://www.replaymod.com/download/)，将 `.mcpr` 复制到该客户端游戏目录的 `replay_recordings/`，从 Replay Viewer 打开，即可观看、跟随 Agent 或调整自由视角。导出 MP4 时在 ReplayMod 中设置镜头/时间关键帧，并按其提示安装 FFmpeg 后渲染。客户端回放、画面和声音以实际渲染为准；当前脚本负责自动采集回放，不自动操控图形客户端导出视频。
+
+同样可用 `smoke --accept-eula --record` 检查从采木到制作两件工具的录制链，它运行固定动作、不调用模型。不开 `--record` 仍启动原版服务端；下载、mod、录像和存档全部留在被 Git 忽略的 `runtime/` 中。
+
+2026-10-29 录制实测：真实 DeepSeek Agent 再次完成 MC-01，约205秒、20次模型调用；生成206秒 `.mcpr`，含1418条完整数据包记录，归档CRC与最后时间戳核对通过。同时通过零模型真实执行器录制、159项Python测试和52项Node测试。尚未通过图形客户端人工回放或导出MP4。脱敏计数见 [录制验收摘要](results/2026-10-29-recording.json)。
+
 零模型执行器联调：
 
 ```powershell

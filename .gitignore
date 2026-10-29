@@ -21,5 +21,7 @@ dist/
 node_modules/
 .coverage
 coverage/
+*.mcpr
+*.mcpr.cache/
 .idea/
 .vscode/

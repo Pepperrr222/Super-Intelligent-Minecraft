@@ -9,7 +9,7 @@ from sim_agent.adapters.mineflayer import ExecutorClient
 
 async def smoke(args):
     output=args.output.resolve();output.mkdir(parents=True,exist_ok=False)
-    async with OwnedServer(output/"server",args.java,args.accept_eula) as server:
+    async with OwnedServer(output/"server",args.java,args.accept_eula,record=getattr(args,"record",False)) as server:
         await server.commands(fixture_commands())
         original=load_config(ROOT/"config.example.json")
         mc=replace(original.minecraft,host="127.0.0.1",port=server.port,username="MC01Smoke",version="1.21.1",world_id="mc01-smoke")
@@ -17,6 +17,7 @@ async def smoke(args):
         backend=ExecutorClient(replace(original,minecraft=mc,config_path=cfg));effects=[]
         try:
             await backend.start();await server.commands(["tp MC01Smoke 0 -60 0","clear MC01Smoke"])
+            await server.start_recording("MC01Smoke")
             async def action(**parameters):
                 ack=await backend.request("act",parameters);ident=ack["action_id"]
                 for _ in range(1500):
@@ -36,5 +37,6 @@ async def smoke(args):
             await action(kind="craft",item="minecraft:wooden_axe",count=1)
             evidence=await server.capture("MC01Smoke","mc01-smoke");result=grade({},evidence)
             atomic_json(output/"result.json",{"mode":"scripted_executor_not_llm","model_calls":0,"evidence":evidence,**result})
+            await server.stop_recording()
             print(result,flush=True);return 0 if result["success"] else 1
         finally:await backend.shutdown()

@@ -1,0 +1,84 @@
+{
+  "task_id": "MC-01",
+  "date": "2026-10-29",
+  "game_version": "1.21.1",
+  "base_commit": "5557ddb",
+  "mode": "hierarchical_real_cloud_llm",
+  "model": "deepseek-v4.1-flash-1017",
+  "initial_inventory": {},
+  "supplied_workstations": false,
+  "human_gameplay_intervention": false,
+  "success": true,
+  "agent_end_state": "completed",
+  "duration_seconds": 205.47,
+  "model_calls": 20,
+  "checks": [
+    {
+      "name": "collected_10_logs",
+      "observed": 10,
+      "pass": true
+    },
+    {
+      "name": "crafted_both_tools",
+      "observed": {
+        "minecraft:wooden_axe": 1,
+        "minecraft:wooden_pickaxe": 1
+      },
+      "pass": true
+    },
+    {
+      "name": "retained_both_tools",
+      "observed": {
+        "minecraft:wooden_axe": 1,
+        "minecraft:wooden_pickaxe": 1
+      },
+      "pass": true
+    }
+  ],
+  "server_counters": {
+    "mined": 10,
+    "inventory": {
+      "minecraft:wooden_axe": 1,
+      "minecraft:oak_log": 7,
+      "minecraft:crafting_table": 0,
+      "minecraft:oak_planks": 0,
+      "minecraft:wooden_pickaxe": 1,
+      "minecraft:stick": 0
+    },
+    "picked": 10,
+    "deaths": 0,
+    "crafted": {
+      "minecraft:wooden_axe": 1,
+      "minecraft:oak_log": 0,
+      "minecraft:crafting_table": 1,
+      "minecraft:oak_planks": 12,
+      "minecraft:wooden_pickaxe": 1,
+      "minecraft:stick": 4
+    },
+    "episode_id": "MC-01",
+    "game_version": "1.21.1",
+    "natural_logs_collected": 10
+  },
+  "recording": {
+    "recorder": "ServerReplay 1.2.10+mc1.21.1",
+    "fabric_loader": "0.16.14",
+    "format": "ReplayMod MCPR v14",
+    "status": "saved",
+    "duration_ms": 206132,
+    "bytes": 62275,
+    "packet_bytes": 1569658,
+    "frames": 1418,
+    "last_packet_ms": 206132,
+    "zip_crc": "ok",
+    "packet_stream": "complete headers and lengths through final timestamp",
+    "client_playback_verified": false,
+    "mp4_rendered": false
+  },
+  "validation": {
+    "python_tests": 159,
+    "node_tests": 52,
+    "offline_demo": "completed",
+    "real_scripted_executor_recording": "passed"
+  },
+  "limits": "One controlled success with replay archive and packet-stream checks. Client playback and MP4 rendering were not performed. Raw recordings, worlds and private config remain local in runtime/."
+}
