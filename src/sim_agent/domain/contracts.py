@@ -9,7 +9,7 @@ from typing import Any
 
 from sim_agent.domain.constraints import parse_constraints, merge_constraints
 from sim_agent.domain.errors import ValidationError
-from sim_agent.domain.goals import parse_goal
+from sim_agent.domain.goals import parse_goal,goal_leaves
 
 
 def object_value(value, where, required=(), optional=()):
@@ -80,6 +80,8 @@ def parse_checks(value, requirement_ids):
             c["goal"] = parse_goal(c["goal"]).to_dict()
             if c["scope"] not in {"root", "stage"}:
                 raise ValidationError("基线scope必须为root或stage")
+            if c["scope"]!="root" and any(g.type=="collected_at_least" for g in goal_leaves(parse_goal(c["goal"]))):
+                raise ValidationError("collected_at_least累计本根任务的采集，必须使用scope=root")
         elif c["kind"] == "evidence_requirement":
             if c["evidence_kind"] not in {"observe", "find_blocks", "recipes", "inspect_container", "action"}:
                 raise ValidationError("未知证据类型")
@@ -164,7 +166,7 @@ class TaskContract:
             for source in list_value(r["source_refs"], "source_refs", maximum=12, minimum=1):
                 text_value(source, "source_ref", 1200)
                 if not any(source in t for t in source_texts):
-                    raise ValidationError("source_ref必须为原文或有效纠正中的真实片段")
+                    raise ValidationError("source_ref不是原文连续片段：" + repr(source) + "；请逐字引用原句，可让拆分需求引用同一句，不要补写动词。")
         covered = set(); deliverable_ids = set()
         for dli in list_value(d["deliverables"], "deliverables", maximum=16, minimum=1):
             business = "completion_criteria" in dli

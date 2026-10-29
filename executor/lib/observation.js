@@ -17,6 +17,7 @@ const CAPABILITIES = Object.freeze([
   'follow',
   'collect',
   'craft',
+  'place',
   'deposit',
   'withdraw',
   'smelt'

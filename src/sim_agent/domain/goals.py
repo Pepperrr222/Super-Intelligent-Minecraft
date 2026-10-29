@@ -30,6 +30,7 @@ SUPPORTED_GOAL_TYPES = frozenset(
     {
         "inventory_at_least",
         "inventory_increase",
+        "collected_at_least",
         "near_position",
         "container_at_least",
         "action_succeeded",
@@ -55,6 +56,8 @@ class Goal:
         return canonical_json(self.spec)
 
     def describe(self) -> str:
+        if self.type == "collected_at_least":
+            return f"本任务累计采集 {self.spec['item']} 至少 {self.spec['count']} 个，允许后续消耗"
         if self.type == "all_of":
             return "；".join(parse_goal(g).describe() for g in self.spec["goals"])
         if self.type in {"inventory_delta", "container_delta"}:
@@ -117,7 +120,7 @@ def parse_goal(raw: Any, *, _depth: int = 0) -> Goal:
         if goal_type == "container_delta":
             spec["position"] = position(raw["position"], "goal.position")
         return Goal(goal_type, spec)
-    if goal_type in {"inventory_at_least", "inventory_increase"}:
+    if goal_type in {"inventory_at_least", "inventory_increase", "collected_at_least"}:
         _exact_keys(raw, "goal", required={"type", "item", "count"})
         spec = {
             "type": goal_type,
@@ -282,6 +285,20 @@ class GoalVerifier:
                       for child in goal.spec["goals"]]
             return VerificationResult(all(c.ok for c in checks), "；".join(c.detail for c in checks),
                                       {"checks": [c.to_dict() for c in checks]})
+        if goal.type == "collected_at_least":
+            item=goal.spec["item"];total=0;seen=set();actions=[]
+            for step in getattr(state,"steps",[]):
+                if step.op!="act" or step.args.get("kind")!="collect" or not step.action_id or step.action_id in seen:
+                    continue
+                if step.status not in {"succeeded","failed","cancelled"}:continue
+                effect=(step.result or {}).get("effect",{})
+                gained=effect.get("inventory_delta",{}).get(item,0)
+                if effect.get("effect_unknown") or effect.get("confirmed_mined_count",0)<=0:
+                    continue
+                if isinstance(gained,int) and not isinstance(gained,bool) and gained>0:
+                    seen.add(step.action_id);total+=gained;actions.append(step.action_id)
+            return VerificationResult(total>=goal.spec["count"],f"累计采集 {item} {total} 个，要求至少 {goal.spec['count']} 个。",
+                                      {"item":item,"collected":total,"action_ids":actions})
         if goal.type == "inventory_delta":
             if getattr(state, "start_inventory", None) is None or not isinstance(obs.get("inventory"), list):
                 return VerificationResult(False, "库存增量缺少真实基线或当前库存观察。", {"reason": "missing_inventory_baseline"})

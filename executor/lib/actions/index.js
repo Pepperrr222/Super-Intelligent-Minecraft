@@ -6,6 +6,7 @@ const collectAction = require('./collect')
 const craftAction = require('./craft')
 const transferAction = require('./transfer')
 const smeltAction = require('./smelt')
+const placeAction = require('./place')
 const { DEFAULT_TIMEOUT_MS, HARD_MAX_TIMEOUT_MS } = require('../action-manager')
 
 const RUNNERS = {
@@ -15,7 +16,8 @@ const RUNNERS = {
   craft: craftAction,
   deposit: transferAction,
   withdraw: transferAction,
-  smelt: smeltAction
+  smelt: smeltAction,
+  place: placeAction
 }
 
 function getRunner (kind) {

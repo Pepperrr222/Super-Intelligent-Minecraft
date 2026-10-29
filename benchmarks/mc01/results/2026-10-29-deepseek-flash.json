@@ -1,0 +1,78 @@
+{
+  "task_id": "MC-01",
+  "game_version": "1.21.1",
+  "date": "2026-10-29",
+  "base_commit": "0849b3bc2e0746d678a66a507169c1ad63d83997",
+  "mode": "hierarchical_real_cloud_llm",
+  "model": "deepseek-v4.1-flash-1017",
+  "thinking": false,
+  "stream": true,
+  "max_output_tokens": 4096,
+  "initial_inventory": {},
+  "supplied_workstations": false,
+  "human_gameplay_intervention": false,
+  "success": true,
+  "agent_end_state": "completed",
+  "duration_seconds": 209.27,
+  "model_calls": 19,
+  "usage": {
+    "calls": 19,
+    "model_calls": 19,
+    "prompt_tokens": 366123,
+    "completion_tokens": 2137,
+    "total_tokens": 368260,
+    "planning_calls": 19,
+    "usage_incomplete": false,
+    "failed_or_unreported_calls": 0
+  },
+  "checks": [
+    {
+      "name": "collected_10_logs",
+      "observed": 12,
+      "pass": true
+    },
+    {
+      "name": "crafted_both_tools",
+      "observed": {
+        "minecraft:wooden_axe": 1,
+        "minecraft:wooden_pickaxe": 1
+      },
+      "pass": true
+    },
+    {
+      "name": "retained_both_tools",
+      "observed": {
+        "minecraft:wooden_axe": 1,
+        "minecraft:wooden_pickaxe": 1
+      },
+      "pass": true
+    }
+  ],
+  "server_counters": {
+    "mined": 12,
+    "picked": 12,
+    "deaths": 0,
+    "crafted": {
+      "minecraft:wooden_axe": 1,
+      "minecraft:oak_log": 0,
+      "minecraft:crafting_table": 1,
+      "minecraft:oak_planks": 12,
+      "minecraft:wooden_pickaxe": 1,
+      "minecraft:stick": 4
+    }
+  },
+  "final_inventory": {
+    "minecraft:wooden_axe": 1,
+    "minecraft:oak_log": 9,
+    "minecraft:crafting_table": 0,
+    "minecraft:oak_planks": 0,
+    "minecraft:wooden_pickaxe": 1,
+    "minecraft:stick": 0
+  },
+  "validation": {
+    "python_tests": 157,
+    "node_tests": 52,
+    "offline_demo": "completed"
+  },
+  "limits": "One controlled self-test success, not a measured multi-seed success rate. Collection uses vanilla mined/picked-up counters, not a full anti-cheat provenance system."
+}

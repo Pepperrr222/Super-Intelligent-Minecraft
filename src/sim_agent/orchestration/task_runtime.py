@@ -204,6 +204,7 @@ class TaskRuntime(ExecutionController):
                "capabilities":self.snap.get("capabilities",{}), "purpose":purpose,
                "previous_error":self.snap.get("last_error"), "report":self.snap.get("report")}
         ctx["delivery_channel"]=self.delivery_channel
+        if self.snap.get("public_scene"):ctx["public_scene"]=self.snap["public_scene"]
         ctx["verification_status"]={"root_ready":bool(self.snap.get("contract") and TaskContract(self.snap["contract"]).checks_ready),
                                     "stage_ready":bool(self.stage and self.stage.get("acceptance_checks"))}
         if self.snap.get("last_invalid_output") and self.snap.get("last_invalid_role")==role:
@@ -226,6 +227,9 @@ class TaskRuntime(ExecutionController):
                 if self.budget.remaining<=0: raise DeadlineExceeded("模型等待期间任务时间耗尽") from e
                 if attempt: raise
                 self._save("model_retry",{"role":role,"error_type":type(e).__name__})
+                if "HTTP 429" in str(e):
+                    await self._race(asyncio.sleep(15), min(16,self.budget.remaining), self._cancel_event,
+                                     DeadlineExceeded("模型限流等待期间任务时间耗尽"))
 
     async def _model_once(self, role, purpose, extra=None):
         self.check(); self._stage_take("calls"); self.budget.take("call")
@@ -632,10 +636,11 @@ class TaskRuntime(ExecutionController):
         state.task_version=self.snap["task_version"]
         return state
 
-    async def run(self,task_text,goal_json=None,*,task_id=None,task_version=1,continuation_context=None,requested_by=None,raw_chat=None,resume_root=None):
+    async def run(self,task_text,goal_json=None,*,task_id=None,task_version=1,continuation_context=None,requested_by=None,raw_chat=None,resume_root=None,public_scene=None):
         if self._active: raise ValidationError("已有任务运行")
         if goal_json is not None: raise ValidationError("hierarchical不支持--goal-json；请用legacy工程测试")
         text_value(task_text,"task",1000)
+        if public_scene is not None:text_value(public_scene,"public_scene",2000)
         previous=None
         if resume_root: previous=self.store.read_task(resume_root)
         elif continuation_context and continuation_context.get("previous_root_task_id"):
@@ -676,6 +681,7 @@ class TaskRuntime(ExecutionController):
                            "received_at":started,"amendments":[]},"budget":{},"mutations_started":False}
         self.budget=Budget(self._config.agent.task_timeout_seconds,self._config.agent.max_steps,
                            self._config.orchestration.max_model_calls,self.snap.get("budget"))
+        if public_scene is not None:self.snap["public_scene"]=public_scene
         self.deadline=time.monotonic()+max(0,self.budget.remaining)
         self.state=self._restore_state(self.snap.get("state"))
         self.state.constraints=merge_constraints(self.state.constraints,explicit_constraints(task_text))

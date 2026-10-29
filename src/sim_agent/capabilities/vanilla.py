@@ -8,6 +8,7 @@ CAPABILITIES = {
     "follow": {"effect": "move_for_finite_duration", "body_lock": True},
     "collect": {"effect": "break_blocks_and_pick_up", "body_lock": True},
     "craft": {"effect": "consume_and_produce", "body_lock": True},
+    "place": {"effect": "consume_one_item_and_place_block", "body_lock": True},
     "deposit": {"effect": "transfer_to_container", "body_lock": True},
     "withdraw": {"effect": "transfer_from_container", "body_lock": True},
     "smelt": {"effect": "consume_input_and_fuel", "body_lock": True},

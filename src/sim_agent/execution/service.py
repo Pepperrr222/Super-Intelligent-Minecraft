@@ -374,7 +374,7 @@ class AgentService:
 
     # ------------------------------------------------------------------
     async def run_single(
-        self, task_text: str, goal_json: dict[str, Any] | None = None
+        self, task_text: str, goal_json: dict[str, Any] | None = None, *, public_scene: str | None = None
     ) -> TaskOutcome:
         """Run one task for ``--task`` mode while still watching disconnects."""
 
@@ -384,7 +384,8 @@ class AgentService:
         )
         try:
             if self._hierarchical: self._runner.delivery_channel = "cli"
-            outcome = await self._runner.run(task_text, goal_json)
+            extra={"public_scene":public_scene} if self._hierarchical and public_scene is not None else {}
+            outcome = await self._runner.run(task_text, goal_json, **extra)
             return outcome
         finally:
             monitor.cancel()

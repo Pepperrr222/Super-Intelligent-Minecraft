@@ -40,6 +40,7 @@ Step operations and validated args:
        {"kind":"follow","player":"Name","duration_seconds":1..60}
        {"kind":"collect","block":"minecraft:oak_log","count":1..64}
        {"kind":"craft","item":"minecraft:oak_log","count":1..64}
+       {"kind":"place","item":"minecraft:crafting_table","position":{"x":n,"y":n,"z":n}}
        {"kind":"deposit","position":{...},"item":"minecraft:oak_log","count":1..64}
        {"kind":"withdraw","position":{...},"item":"minecraft:oak_log","count":1..64}
        {"kind":"smelt","position":{...},"input":"minecraft:raw_iron",
@@ -54,6 +55,7 @@ Goal predicates (code verifies them; you cannot declare success):
 - {"type":"container_delta","position":{...},"item":"minecraft:oak_planks","delta":8} exact delta from captured baseline
 - {"type":"inventory_at_least","item":"minecraft:oak_log","count":N}
 - {"type":"inventory_increase","item":"minecraft:oak_log","count":N}
+- {"type":"collected_at_least","item":"minecraft:oak_log","count":N} cumulative confirmed collection; may be consumed later
 - {"type":"near_position","position":{"x":n,"y":n,"z":n},"range":1..16}
 - {"type":"container_at_least","position":{...},"item":"minecraft:oak_log","count":N}
 - {"type":"action_succeeded","action":"follow","player":"Name","duration_seconds":1..60}
