@@ -160,7 +160,6 @@ async function run (ctx, args) {
 
   const item = resolveItem(bot, args.item)
   let before = inventoryCounts(bot)
-  const beforeCount = countOf(before, args.item)
 
   let recipes = bot.recipesFor(item.id, null, args.count, null)
   recipes = recipes.concat(bot.recipesFor(item.id, null, args.count, true).filter((recipe) => recipe.requiresTable))
@@ -209,14 +208,26 @@ async function run (ctx, args) {
   })
 
   let craftError = null
-  try {
-    await ctx.wait(bot.craft(recipe, repeats, table))
-  } catch (err) {
-    if (ctx.token.cancelled) throw err
-    craftError = err
+  let recovery = {}
+  // Reconcile each recipe batch with the server before putting down the next
+  // ingredients. A speculative multi-craft can otherwise lose later batches
+  // on modern stateId windows while appearing successful to Mineflayer.
+  for (let batch = 0; batch < repeats; batch++) {
+    ctx.check()
+    const prior = countOf(inventoryCounts(bot), args.item)
+    try {
+      await ctx.wait(bot.craft(recipe, 1, table))
+    } catch (err) {
+      if (ctx.token.cancelled) throw err
+      craftError = err
+    }
+    recovery = await recoverCraftingState(ctx)
+    await syncInventory(ctx)
+    const actual = countOf(inventoryCounts(bot), args.item)
+    ctx.setEffect({ completed_batches: batch + 1, produced_count: actual - countOf(before, args.item) })
+    if (actual - prior < perCraft || craftError) break
   }
 
-  const recovery = await recoverCraftingState(ctx)
   await ctx.sleep(50)
   ctx.check()
 

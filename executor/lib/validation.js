@@ -24,6 +24,7 @@ const ACTION_KINDS = new Set([
   'follow',
   'collect',
   'craft',
+  'place',
   'deposit',
   'withdraw',
   'smelt'
@@ -176,6 +177,10 @@ function validateAct (args) {
   const kind = args.kind
 
   switch (kind) {
+    case 'place': {
+      assertNoExtraKeys(args, ['kind', 'position', 'item'], 'args')
+      return { kind, position: readPosition(args.position, 'args.position', true), item: assertCanonicalId(args.item, 'args.item') }
+    }
     case 'goto': {
       assertNoExtraKeys(args, ['kind', 'position', 'range'], 'args')
       if (!('position' in args)) throw new ValidationError('args.position is required', 'args.position')

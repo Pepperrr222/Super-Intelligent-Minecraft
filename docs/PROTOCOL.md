@@ -57,6 +57,18 @@ Pathfinding does not dig or place blocks automatically. Only standard supported 
 
 ## Hierarchical model proposal (opt-in)
 
+The model-facing shorthand may be a flat object: `{operation, reason, ...operationFields}`.
+Python deterministically supplies `schema_version`, the role envelope and `payload`; action arguments and semantic checks remain unchanged.
+Existing complete envelopes remain accepted. Malformed JSON, unknown fields or operations are still rejected.
+Model-visible evidence IDs use short aliases; Python restores existing persistent IDs only in evidence-reference fields.
+`collected_at_least {item,count}` verifies cumulative item gains in confirmed collect outcomes for the current root task,
+deduplicated by action ID. Later consumption does not undo collection. It uses root scope, unlike final inventory predicates.
+Optional `public_scene` on `AgentService.run_single` / `TaskRuntime.run` supplies public environment facts separately from the user's task; it is not a hidden grader input.
+
+Explicit `act` kind `place` accepts `{item,position}` with integer coordinates. It consumes one existing block item,
+requires an empty target with solid support below, and verifies both the resulting block and inventory decrement.
+Navigation and crafting still never place a workstation implicitly. Unconfirmed placement retains `effect_unknown`.
+
 With orchestration.mode=hierarchical, the existing Node JSONL protocol is reused. Coordinator/Worker use distinct internal envelopes: schema_version, kind, summary, payload. The Coordinator proposes contracts/plans/dispatch/report/clarification; Worker proposes query/act/submit_result/blocked. Neither writes verified facts or completion directly. Schemas: implementation/VANILLA_AGENT_V1.md. Current limits: implementation/RUNNING.md.
 
 All roles and retries share root budgets and version checks. Reporting is a first-class deliverable; a receipt means submitted, not read. TaskStore persists current-task snapshots and action journals separately from learning. Unknown actions/chat receipts do not automatically replay. Explicit continuation preserves baselines, effects and spent budgets. Only B0 is supported; no silent rules/legacy fallback.

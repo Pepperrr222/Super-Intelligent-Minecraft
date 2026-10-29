@@ -21,7 +21,7 @@ PLAYER_RE = re.compile(r"^[A-Za-z0-9_]{1,16}$")
 
 QUERY_OPS = frozenset({"observe", "find_blocks", "inspect_container", "recipes"})
 ACTION_KINDS = frozenset(
-    {"goto", "follow", "collect", "craft", "deposit", "withdraw", "smelt"}
+    {"goto", "follow", "collect", "craft", "place", "deposit", "withdraw", "smelt"}
 )
 STEP_OPS = QUERY_OPS | {"act", "finish", "clarify"}
 
@@ -175,6 +175,12 @@ def _validate_action(args: dict[str, Any]) -> dict[str, Any]:
     kind = args.get("kind")
     if not isinstance(kind, str) or kind not in ACTION_KINDS:
         raise ValidationError(f"act.kind 必须是 {', '.join(sorted(ACTION_KINDS))}")
+    if kind == "place":
+        _exact_keys(args, "act", required={"kind", "item", "position"})
+        at = position(args["position"], "act.position")
+        if any(float(value) != int(value) for value in at.values()):
+            raise ValidationError("放置位置必须为整数方块坐标")
+        return {"kind": kind, "item": canonical_item(args["item"]), "position": at}
     if kind == "goto":
         _exact_keys(args, "act", required={"kind", "position"}, optional={"range"})
         return {

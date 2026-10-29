@@ -1,0 +1,58 @@
+{
+  "protocol": {
+    "name": "MC-NPC-MC01-1.21.1",
+    "version": "0.1.0",
+    "game_version": "1.21.1",
+    "task_count": 1,
+    "source": "MC-NPC-100 v0.2 first task",
+    "track": "controlled-survival-vanilla-self-test",
+    "instance_count": 1,
+    "original_predicates_preserved": true
+  },
+  "tasks": [
+    {
+      "id": "MC-01",
+      "level": 1,
+      "title": "原木与木工具",
+      "player_prompt": "采集至少10个橡木原木，并制作一把木斧和一把木镐。",
+      "initial_inventory": {},
+      "initial_equipment": {},
+      "initial_xp_level": 0,
+      "fixture_requirements": [
+        "oak_forest"
+      ],
+      "success_all": [
+        {
+          "kind": "event_count",
+          "event": "natural_log_collected",
+          "count": 10,
+          "item": "oak_log",
+          "source_region": "harvest_zone"
+        },
+        {
+          "kind": "crafted_output_at_least",
+          "items": {
+            "wooden_axe": 1,
+            "wooden_pickaxe": 1
+          }
+        },
+        {
+          "kind": "inventory_at_least",
+          "items": {
+            "wooden_axe": 1,
+            "wooden_pickaxe": 1
+          }
+        }
+      ],
+      "capabilities": [
+        "gather",
+        "craft"
+      ],
+      "budget": {
+        "wall_time_seconds": 600,
+        "model_calls": 30
+      },
+      "note": "10个原木按本回合累计自然采集量计算；允许把它们消耗成工具，不要求最终剩余10个。"
+    }
+  ]
+}

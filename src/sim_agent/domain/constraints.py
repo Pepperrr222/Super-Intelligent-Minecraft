@@ -124,6 +124,8 @@ def guard_action(constraints: dict, op: str, args: dict, observation: dict, reci
     consumed: dict[str, int] = {}
     if kind == "deposit":
         consumed[args["item"]] = args["count"]
+    elif kind == "place":
+        consumed[args["item"]] = 1
     elif kind == "smelt":
         consumed[args["input"]] = args["input_count"]
         consumed[args["fuel"]] = consumed.get(args["fuel"], 0) + args["fuel_count"]

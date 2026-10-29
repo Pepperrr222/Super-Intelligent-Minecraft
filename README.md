@@ -109,3 +109,7 @@ runtime/               本地日志、数据库、测试服与存档，不提交
 ```
 
 原始题目与开题 PPT 在 [docs/design](docs/design)。已有 legacy 受控验收摘要在 [benchmarks/results](benchmarks/results)，不能替代当前架构的完整验收。学习和整合包研究计划见 [后续路线](docs/ROADMAP.md)。
+
+## MC-01 自测入口
+
+新增 [第一个任务的运行说明](benchmarks/mc01/README.md)：原版1.21.1空背包采集10个橡木原木、制作木斧和木镐，真实模型运行与零模型执行器联调分别记录。
