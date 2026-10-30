@@ -1,0 +1,5577 @@
+{
+  "source": "https://github.com/Serein55/CoCraftBench",
+  "commit": "be208787b6d1831c8897e42a505319c04db5923b",
+  "targetMinecraft": "1.21.6",
+  "sourceMineflayer": "4.33.0 (source-audit mentions local patches)",
+  "simMineflayer": "4.39.0",
+  "note": "primitive means SIM has underlying operations, not full benchmark contract coverage or proven task success.",
+  "simActionCount": 44,
+  "queryCount": 5,
+  "operations": [
+    {
+      "name": "observe.snapshot",
+      "classification": "primitive",
+      "simActions": [],
+      "simQueries": [
+        "snapshot",
+        "inspect_block",
+        "find_blocks"
+      ],
+      "remainingWork": "已加载半径观测；原始组件可读，不含所有1.21.6语义解码和规范slotRef生命周期",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "navigation.goto",
+      "classification": "primitive",
+      "simActions": [
+        "navigate"
+      ],
+      "simQueries": [],
+      "remainingWork": "禁止路径挖掘和搭方块；仍需任务许可区域与保护区域策略",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "navigation.control",
+      "classification": "primitive",
+      "simActions": [
+        "move",
+        "look",
+        "look_at",
+        "look_at_entity",
+        "move_ticks",
+        "wait_ticks"
+      ],
+      "simQueries": [],
+      "remainingWork": "本地physicsTick控制；看向实体按部位计算高度；水下/坠落策略由控制器负责",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "gather.collect",
+      "classification": "controller_needed",
+      "simActions": [
+        "navigate",
+        "dig"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "verify"
+      ],
+      "remainingWork": "缺目标挑选、拾取实体跟踪、背包满恢复和来源验证",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "block.break",
+      "classification": "primitive",
+      "simActions": [
+        "dig",
+        "equip"
+      ],
+      "simQueries": [
+        "inspect_block",
+        "verify"
+      ],
+      "remainingWork": "有方块变化核验；许可区域与掉落来源尚未实现",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "block.place",
+      "classification": "controller_needed",
+      "simActions": [
+        "place",
+        "place_entity",
+        "look",
+        "look_at"
+      ],
+      "simQueries": [
+        "inspect_block",
+        "verify"
+      ],
+      "remainingWork": "有support+face；缺朝向/含水/双格方块放置策略",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "inventory.equip",
+      "classification": "primitive",
+      "simActions": [
+        "equip",
+        "unequip",
+        "select_slot"
+      ],
+      "simQueries": [
+        "snapshot"
+      ],
+      "remainingWork": "按名称装备接口不等同于规范的带revision精确slotRef",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "inventory.transfer",
+      "classification": "primitive",
+      "simActions": [
+        "container_transfer",
+        "container_inspect",
+        "inventory_move",
+        "toss"
+      ],
+      "simQueries": [
+        "snapshot"
+      ],
+      "remainingWork": "容器与空槽整理可用；丢弃许可区和完整cursor恢复待实现",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "inventory.bundle",
+      "classification": "experimental_gap",
+      "simActions": [],
+      "simQueries": [
+        "snapshot"
+      ],
+      "remainingWork": "缺1.21.6收纳袋GUI适配与容量规则",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "item.use",
+      "classification": "primitive",
+      "simActions": [
+        "use_item",
+        "use_item_ticks",
+        "consume",
+        "activate_block",
+        "activate_entity",
+        "activate_entity_at"
+      ],
+      "simQueries": [
+        "snapshot",
+        "verify"
+      ],
+      "remainingWork": "定点交互仅主手；持用不证明命中或效果",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "craft.make",
+      "classification": "primitive",
+      "simActions": [
+        "craft",
+        "craft_output"
+      ],
+      "simQueries": [
+        "recipes"
+      ],
+      "remainingWork": "支持配方次数和目标产量换算；缺材料由上层补齐",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "furnace.smelt",
+      "classification": "controller_needed",
+      "simActions": [
+        "furnace_inspect",
+        "furnace_put",
+        "furnace_take"
+      ],
+      "simQueries": [],
+      "remainingWork": "提供装料/燃料/事件等待取出；例子演示组合，持久恢复与燃料规划待补",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "brewing.brew",
+      "classification": "controller_needed",
+      "simActions": [
+        "brewing_inspect",
+        "brewing_put",
+        "brewing_take"
+      ],
+      "simQueries": [],
+      "remainingWork": "已有1.21.6限定槽位读写；缺药水组件解码、配方状态机、燃料/进度协议和实测",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "workstation.process",
+      "classification": "experimental_gap",
+      "simActions": [],
+      "simQueries": [],
+      "remainingWork": "缺砂轮/制图/切石/锻造/合成器专用适配，未暴露任意clickWindow或数据包",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "villager.trade",
+      "classification": "primitive",
+      "simActions": [
+        "trade_inspect",
+        "trade"
+      ],
+      "simQueries": [
+        "snapshot"
+      ],
+      "remainingWork": "实时报价指纹匹配与第二输入检查；未实现基准entityRef会话身份契约",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "villager.manage_job",
+      "classification": "controller_needed",
+      "simActions": [
+        "place",
+        "dig",
+        "trade_inspect",
+        "wait_until"
+      ],
+      "simQueries": [
+        "snapshot"
+      ],
+      "remainingWork": "放置工作站不证明职业归属；缺职业元数据解码与时段控制",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "enchanting.enchant",
+      "classification": "primitive",
+      "simActions": [
+        "enchant"
+      ],
+      "simQueries": [
+        "snapshot"
+      ],
+      "remainingWork": "窗口槽位转换、显示等级/消耗区分、实际附魔检查；指定稀有附魔不是保证",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "anvil.process",
+      "classification": "primitive",
+      "simActions": [
+        "anvil"
+      ],
+      "simQueries": [
+        "snapshot"
+      ],
+      "remainingWork": "等级预算与耐久/附魔检查；原生选择有歧义时拒绝；完整现代组件保真仍待实测",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "combat.melee",
+      "classification": "controller_needed",
+      "simActions": [
+        "attack_once",
+        "look_at",
+        "move_ticks",
+        "wait_ticks"
+      ],
+      "simQueries": [
+        "snapshot"
+      ],
+      "remainingWork": "禁止直接攻击玩家及附近挥砍风险；缺冷却、跳劈/重锤状态机和伤害归因",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "combat.shoot",
+      "classification": "controller_needed",
+      "simActions": [
+        "look",
+        "look_at",
+        "use_item_ticks",
+        "select_slot"
+      ],
+      "simQueries": [
+        "snapshot"
+      ],
+      "remainingWork": "缺弹道、目标提前量、弩装填解码和玩家射线检查",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "combat.shield",
+      "classification": "controller_needed",
+      "simActions": [
+        "equip",
+        "look_at",
+        "use_item_ticks"
+      ],
+      "simQueries": [
+        "snapshot"
+      ],
+      "remainingWork": "可副手持用；缺威胁转向、禁用/起盾状态检测与格挡证据",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "combat.parry",
+      "classification": "experimental_gap",
+      "simActions": [],
+      "simQueries": [
+        "snapshot"
+      ],
+      "remainingWork": "缺可反射弹射物白名单、轨迹预测和来源链判定",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "movement.clutch",
+      "classification": "experimental_gap",
+      "simActions": [
+        "move_ticks",
+        "look_at",
+        "activate_block",
+        "use_item_ticks"
+      ],
+      "simQueries": [
+        "snapshot"
+      ],
+      "remainingWork": "有输入积木，不具备落点预测、水桶/风弹救援时序",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "vehicle.mount",
+      "classification": "controller_needed",
+      "simActions": [
+        "mount",
+        "place_entity"
+      ],
+      "simQueries": [
+        "snapshot"
+      ],
+      "remainingWork": "仅普通船/竹筏；乘坐关系不代表驾驶席",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "vehicle.drive",
+      "classification": "experimental_gap",
+      "simActions": [
+        "vehicle_control"
+      ],
+      "simQueries": [
+        "snapshot"
+      ],
+      "remainingWork": "仅普通船/竹筏水平输入，未实现快乐恶魂三维驾驶或路线控制",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "vehicle.dismount",
+      "classification": "experimental_gap",
+      "simActions": [
+        "dismount"
+      ],
+      "simQueries": [
+        "snapshot"
+      ],
+      "remainingWork": "新player_input分支明确UNSUPPORTED；其他版本仅关系核验，不证明安全落脚",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "animal.interact",
+      "classification": "controller_needed",
+      "simActions": [
+        "equip",
+        "activate_entity",
+        "activate_entity_at",
+        "use_item_ticks"
+      ],
+      "simQueries": [
+        "snapshot"
+      ],
+      "remainingWork": "缺年龄/主人/装备元数据语义与喂食、剪取后置条件",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "animal.leash",
+      "classification": "experimental_gap",
+      "simActions": [
+        "activate_entity",
+        "activate_entity_at"
+      ],
+      "simQueries": [
+        "snapshot"
+      ],
+      "remainingWork": "没有可靠拴绳关系图、动物互拴和货物吊运验证",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "world.portal",
+      "classification": "controller_needed",
+      "simActions": [
+        "activate_block",
+        "navigate",
+        "wait_until"
+      ],
+      "simQueries": [
+        "verify",
+        "snapshot"
+      ],
+      "remainingWork": "可以等待维度变化；缺点燃、双向地标和跨维度路径技能",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "world.redstone",
+      "classification": "controller_needed",
+      "simActions": [
+        "activate_block",
+        "place",
+        "wait_until"
+      ],
+      "simQueries": [
+        "inspect_block",
+        "verify"
+      ],
+      "remainingWork": "有状态读回；缺电路因果与红石建造/朝向控制器",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "world.archaeology",
+      "classification": "experimental_gap",
+      "simActions": [
+        "look_at",
+        "activate_block",
+        "use_item_ticks"
+      ],
+      "simQueries": [
+        "inspect_block"
+      ],
+      "remainingWork": "未验证刷扫持续包与dusted进度，禁止用dig代替",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "trial.interact",
+      "classification": "controller_needed",
+      "simActions": [
+        "activate_block",
+        "consume",
+        "attack_once"
+      ],
+      "simQueries": [
+        "inspect_block",
+        "snapshot"
+      ],
+      "remainingWork": "仅交互积木；试炼完成/奖励归属与宝库资格需grader",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "world.wait_until",
+      "classification": "primitive",
+      "simActions": [
+        "wait_until",
+        "wait",
+        "wait_ticks"
+      ],
+      "simQueries": [
+        "verify"
+      ],
+      "remainingWork": "只支持显式白名单条件；未知返回unknown，墙钟超时终止",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "world.fish",
+      "classification": "primitive",
+      "simActions": [
+        "fish_once",
+        "look_at"
+      ],
+      "simQueries": [
+        "snapshot",
+        "verify"
+      ],
+      "remainingWork": "原生咬钩/收竿；渔获拾取需独立核验，取消可能保留原生租约",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "build.blueprint",
+      "classification": "controller_needed",
+      "simActions": [
+        "navigate",
+        "place",
+        "dig"
+      ],
+      "simQueries": [
+        "inspect_block",
+        "verify"
+      ],
+      "remainingWork": "缺蓝图解析、放置次序、差异修复与revision停止",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "plan.checkpoint",
+      "classification": "planner_needed",
+      "simActions": [],
+      "simQueries": [],
+      "remainingWork": "计划账本持久化不属于Mineflayer底层，本次未实现",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "plan.resume",
+      "classification": "planner_needed",
+      "simActions": [],
+      "simQueries": [
+        "snapshot",
+        "verify"
+      ],
+      "remainingWork": "缺持久计划与当前世界对账，不能盲重放消耗操作",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "plan.revise",
+      "classification": "planner_needed",
+      "simActions": [],
+      "simQueries": [
+        "snapshot",
+        "verify"
+      ],
+      "remainingWork": "缺计划revision与旧动作对账；底层已有stop",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "verify.local",
+      "classification": "primitive",
+      "simActions": [],
+      "simQueries": [
+        "verify"
+      ],
+      "remainingWork": "5类条件true/false/unknown；不是230条benchmark谓词实现",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "npc.say",
+      "classification": "primitive",
+      "simActions": [
+        "say"
+      ],
+      "simQueries": [],
+      "remainingWork": "基础命令/JSON/调用过滤；全系统聊天出口和提示词注入防护未接入",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "action.status",
+      "classification": "service_partial",
+      "simActions": [],
+      "simQueries": [],
+      "remainingWork": "已有busy和execute结果；缺action_id索引账本、幂等重放和progress协议",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    },
+    {
+      "name": "action.cancel",
+      "classification": "service_partial",
+      "simActions": [],
+      "simQueries": [],
+      "remainingWork": "已有stop/AbortSignal与租约清理；缺规范cleanup/partial_effects外壳",
+      "liveValidation": "not_run",
+      "contractCompatible": false
+    }
+  ],
+  "tasks": [
+    {
+      "taskId": "MC-01",
+      "title": "原木与木工具",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "craft.make",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "inventory_move",
+        "navigate",
+        "select_slot",
+        "toss",
+        "unequip"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "gather.collect"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-02",
+      "title": "石镐与圆石",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "craft.make",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "inventory_move",
+        "navigate",
+        "select_slot",
+        "toss",
+        "unequip"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "gather.collect"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-03",
+      "title": "工作台和箱子",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "block.place",
+        "craft.make",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "inventory_move",
+        "look",
+        "look_at",
+        "navigate",
+        "place",
+        "place_entity",
+        "select_slot",
+        "toss",
+        "unequip"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "block.place",
+        "gather.collect"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-04",
+      "title": "木炭生产",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "block.place",
+        "craft.make",
+        "furnace.smelt",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "furnace_inspect",
+        "furnace_put",
+        "furnace_take",
+        "inventory_move",
+        "look",
+        "look_at",
+        "navigate",
+        "place",
+        "place_entity",
+        "select_slot",
+        "toss",
+        "unequip"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "block.place",
+        "furnace.smelt",
+        "gather.collect"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-05",
+      "title": "火把",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "craft.make",
+        "furnace.smelt",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "furnace_inspect",
+        "furnace_put",
+        "furnace_take",
+        "inventory_move",
+        "navigate",
+        "select_slot",
+        "toss",
+        "unequip"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "furnace.smelt",
+        "gather.collect"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-06",
+      "title": "石工具组合",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "craft.make",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "inventory_move",
+        "navigate",
+        "select_slot",
+        "toss",
+        "unequip"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "gather.collect"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-07",
+      "title": "玻璃",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "craft.make",
+        "furnace.smelt",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "furnace_inspect",
+        "furnace_put",
+        "furnace_take",
+        "inventory_move",
+        "navigate",
+        "select_slot",
+        "toss",
+        "unequip"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "furnace.smelt",
+        "gather.collect"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-08",
+      "title": "白床",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "block.place",
+        "craft.make",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "inventory_move",
+        "look",
+        "look_at",
+        "navigate",
+        "place",
+        "place_entity",
+        "select_slot",
+        "toss",
+        "unequip"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "block.place",
+        "gather.collect"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-09",
+      "title": "熟牛肉",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "combat.melee",
+        "craft.make",
+        "furnace.smelt",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.control",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "attack_once",
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "furnace_inspect",
+        "furnace_put",
+        "furnace_take",
+        "inventory_move",
+        "look",
+        "look_at",
+        "look_at_entity",
+        "move",
+        "move_ticks",
+        "navigate",
+        "select_slot",
+        "toss",
+        "unequip",
+        "wait_ticks"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "combat.melee",
+        "furnace.smelt",
+        "gather.collect"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-10",
+      "title": "分类采集与交付",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "craft.make",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "inventory_move",
+        "navigate",
+        "select_slot",
+        "toss",
+        "unequip"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "gather.collect"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-11",
+      "title": "煤矿开采",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "craft.make",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "inventory_move",
+        "navigate",
+        "select_slot",
+        "toss",
+        "unequip"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "gather.collect"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-12",
+      "title": "铁锭",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "craft.make",
+        "furnace.smelt",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "furnace_inspect",
+        "furnace_put",
+        "furnace_take",
+        "inventory_move",
+        "navigate",
+        "select_slot",
+        "toss",
+        "unequip"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "furnace.smelt",
+        "gather.collect"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-13",
+      "title": "铁工具组合",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "craft.make",
+        "furnace.smelt",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "furnace_inspect",
+        "furnace_put",
+        "furnace_take",
+        "inventory_move",
+        "navigate",
+        "select_slot",
+        "toss",
+        "unequip"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "furnace.smelt",
+        "gather.collect"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-14",
+      "title": "剑盾装备",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "craft.make",
+        "furnace.smelt",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "furnace_inspect",
+        "furnace_put",
+        "furnace_take",
+        "inventory_move",
+        "navigate",
+        "select_slot",
+        "toss",
+        "unequip"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "furnace.smelt",
+        "gather.collect"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-15",
+      "title": "无伤剪羊毛",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "block.place",
+        "craft.make",
+        "furnace.smelt",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "item.use",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local",
+        "world.wait_until"
+      ],
+      "simActions": [
+        "activate_block",
+        "activate_entity",
+        "activate_entity_at",
+        "consume",
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "furnace_inspect",
+        "furnace_put",
+        "furnace_take",
+        "inventory_move",
+        "look",
+        "look_at",
+        "navigate",
+        "place",
+        "place_entity",
+        "select_slot",
+        "toss",
+        "unequip",
+        "use_item",
+        "use_item_ticks",
+        "wait",
+        "wait_ticks",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "block.place",
+        "furnace.smelt",
+        "gather.collect"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-16",
+      "title": "水桶与熔岩桶",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "block.place",
+        "craft.make",
+        "furnace.smelt",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "item.use",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local",
+        "world.wait_until"
+      ],
+      "simActions": [
+        "activate_block",
+        "activate_entity",
+        "activate_entity_at",
+        "consume",
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "furnace_inspect",
+        "furnace_put",
+        "furnace_take",
+        "inventory_move",
+        "look",
+        "look_at",
+        "navigate",
+        "place",
+        "place_entity",
+        "select_slot",
+        "toss",
+        "unequip",
+        "use_item",
+        "use_item_ticks",
+        "wait",
+        "wait_ticks",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "block.place",
+        "furnace.smelt",
+        "gather.collect"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-17",
+      "title": "小型麦田",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "block.place",
+        "craft.make",
+        "furnace.smelt",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "item.use",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local",
+        "world.wait_until"
+      ],
+      "simActions": [
+        "activate_block",
+        "activate_entity",
+        "activate_entity_at",
+        "consume",
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "furnace_inspect",
+        "furnace_put",
+        "furnace_take",
+        "inventory_move",
+        "look",
+        "look_at",
+        "navigate",
+        "place",
+        "place_entity",
+        "select_slot",
+        "toss",
+        "unequip",
+        "use_item",
+        "use_item_ticks",
+        "wait",
+        "wait_ticks",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "block.place",
+        "furnace.smelt",
+        "gather.collect"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-18",
+      "title": "面包",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "block.place",
+        "craft.make",
+        "gather.collect",
+        "inventory.equip",
+        "item.use",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local",
+        "world.wait_until"
+      ],
+      "simActions": [
+        "activate_block",
+        "activate_entity",
+        "activate_entity_at",
+        "consume",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "look",
+        "look_at",
+        "navigate",
+        "place",
+        "place_entity",
+        "select_slot",
+        "unequip",
+        "use_item",
+        "use_item_ticks",
+        "wait",
+        "wait_ticks",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "block.place",
+        "gather.collect"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-19",
+      "title": "短途补给",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "block.place",
+        "craft.make",
+        "furnace.smelt",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "item.use",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local",
+        "world.wait_until"
+      ],
+      "simActions": [
+        "activate_block",
+        "activate_entity",
+        "activate_entity_at",
+        "consume",
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "furnace_inspect",
+        "furnace_put",
+        "furnace_take",
+        "inventory_move",
+        "look",
+        "look_at",
+        "navigate",
+        "place",
+        "place_entity",
+        "select_slot",
+        "toss",
+        "unequip",
+        "use_item",
+        "use_item_ticks",
+        "wait",
+        "wait_ticks",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "block.place",
+        "furnace.smelt",
+        "gather.collect"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-20",
+      "title": "铁轨与矿车",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "craft.make",
+        "furnace.smelt",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "furnace_inspect",
+        "furnace_put",
+        "furnace_take",
+        "inventory_move",
+        "navigate",
+        "select_slot",
+        "toss",
+        "unequip"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "furnace.smelt",
+        "gather.collect"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-21",
+      "title": "全套铁甲",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "craft.make",
+        "furnace.smelt",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "furnace_inspect",
+        "furnace_put",
+        "furnace_take",
+        "inventory_move",
+        "navigate",
+        "select_slot",
+        "toss",
+        "unequip"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "furnace.smelt",
+        "gather.collect"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-22",
+      "title": "铁装战斗套装",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "craft.make",
+        "furnace.smelt",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "furnace_inspect",
+        "furnace_put",
+        "furnace_take",
+        "inventory_move",
+        "navigate",
+        "select_slot",
+        "toss",
+        "unequip"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "furnace.smelt",
+        "gather.collect"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-23",
+      "title": "首批钻石",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "craft.make",
+        "furnace.smelt",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "furnace_inspect",
+        "furnace_put",
+        "furnace_take",
+        "inventory_move",
+        "navigate",
+        "select_slot",
+        "toss",
+        "unequip"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "furnace.smelt",
+        "gather.collect"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-24",
+      "title": "钻石镐与黑曜石",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "block.place",
+        "craft.make",
+        "furnace.smelt",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "item.use",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local",
+        "world.wait_until"
+      ],
+      "simActions": [
+        "activate_block",
+        "activate_entity",
+        "activate_entity_at",
+        "consume",
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "furnace_inspect",
+        "furnace_put",
+        "furnace_take",
+        "inventory_move",
+        "look",
+        "look_at",
+        "navigate",
+        "place",
+        "place_entity",
+        "select_slot",
+        "toss",
+        "unequip",
+        "use_item",
+        "use_item_ticks",
+        "wait",
+        "wait_ticks",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "block.place",
+        "furnace.smelt",
+        "gather.collect"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-25",
+      "title": "时钟与指南针",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "craft.make",
+        "furnace.smelt",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "furnace_inspect",
+        "furnace_put",
+        "furnace_take",
+        "inventory_move",
+        "navigate",
+        "select_slot",
+        "toss",
+        "unequip"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "furnace.smelt",
+        "gather.collect"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-26",
+      "title": "蛋糕",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "block.place",
+        "craft.make",
+        "furnace.smelt",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "item.use",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local",
+        "world.wait_until"
+      ],
+      "simActions": [
+        "activate_block",
+        "activate_entity",
+        "activate_entity_at",
+        "consume",
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "furnace_inspect",
+        "furnace_put",
+        "furnace_take",
+        "inventory_move",
+        "look",
+        "look_at",
+        "navigate",
+        "place",
+        "place_entity",
+        "select_slot",
+        "toss",
+        "unequip",
+        "use_item",
+        "use_item_ticks",
+        "wait",
+        "wait_ticks",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "block.place",
+        "furnace.smelt",
+        "gather.collect"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-27",
+      "title": "繁殖牛羊",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "animal.interact",
+        "block.break",
+        "block.place",
+        "gather.collect",
+        "inventory.equip",
+        "item.use",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local",
+        "world.wait_until"
+      ],
+      "simActions": [
+        "activate_block",
+        "activate_entity",
+        "activate_entity_at",
+        "consume",
+        "dig",
+        "equip",
+        "look",
+        "look_at",
+        "navigate",
+        "place",
+        "place_entity",
+        "select_slot",
+        "unequip",
+        "use_item",
+        "use_item_ticks",
+        "wait",
+        "wait_ticks",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "animal.interact",
+        "block.place",
+        "gather.collect"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-28",
+      "title": "收获与复种",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "block.place",
+        "craft.make",
+        "gather.collect",
+        "inventory.equip",
+        "item.use",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local",
+        "world.wait_until"
+      ],
+      "simActions": [
+        "activate_block",
+        "activate_entity",
+        "activate_entity_at",
+        "consume",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "look",
+        "look_at",
+        "navigate",
+        "place",
+        "place_entity",
+        "select_slot",
+        "unequip",
+        "use_item",
+        "use_item_ticks",
+        "wait",
+        "wait_ticks",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "block.place",
+        "gather.collect"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-29",
+      "title": "基础小木屋",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "block.place",
+        "build.blueprint",
+        "craft.make",
+        "furnace.smelt",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "furnace_inspect",
+        "furnace_put",
+        "furnace_take",
+        "inventory_move",
+        "look",
+        "look_at",
+        "navigate",
+        "place",
+        "place_entity",
+        "select_slot",
+        "toss",
+        "unequip"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "block.place",
+        "build.blueprint",
+        "furnace.smelt",
+        "gather.collect"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-30",
+      "title": "可居住木屋",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "block.place",
+        "build.blueprint",
+        "craft.make",
+        "furnace.smelt",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "furnace_inspect",
+        "furnace_put",
+        "furnace_take",
+        "inventory_move",
+        "look",
+        "look_at",
+        "navigate",
+        "place",
+        "place_entity",
+        "select_slot",
+        "toss",
+        "unequip"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "block.place",
+        "build.blueprint",
+        "furnace.smelt",
+        "gather.collect"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-31",
+      "title": "附魔台",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "block.place",
+        "craft.make",
+        "furnace.smelt",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "item.use",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local",
+        "world.wait_until"
+      ],
+      "simActions": [
+        "activate_block",
+        "activate_entity",
+        "activate_entity_at",
+        "consume",
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "furnace_inspect",
+        "furnace_put",
+        "furnace_take",
+        "inventory_move",
+        "look",
+        "look_at",
+        "navigate",
+        "place",
+        "place_entity",
+        "select_slot",
+        "toss",
+        "unequip",
+        "use_item",
+        "use_item_ticks",
+        "wait",
+        "wait_ticks",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "block.place",
+        "furnace.smelt",
+        "gather.collect"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-32",
+      "title": "钻石工具组合",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "craft.make",
+        "furnace.smelt",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "furnace_inspect",
+        "furnace_put",
+        "furnace_take",
+        "inventory_move",
+        "navigate",
+        "select_slot",
+        "toss",
+        "unequip"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "furnace.smelt",
+        "gather.collect"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-33",
+      "title": "下界往返",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "craft.make",
+        "furnace.smelt",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "item.use",
+        "navigation.control",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local",
+        "world.portal"
+      ],
+      "simActions": [
+        "activate_block",
+        "activate_entity",
+        "activate_entity_at",
+        "consume",
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "furnace_inspect",
+        "furnace_put",
+        "furnace_take",
+        "inventory_move",
+        "look",
+        "look_at",
+        "look_at_entity",
+        "move",
+        "move_ticks",
+        "navigate",
+        "select_slot",
+        "toss",
+        "unequip",
+        "use_item",
+        "use_item_ticks",
+        "wait_ticks",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "furnace.smelt",
+        "gather.collect",
+        "world.portal"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-34",
+      "title": "下界资源运输",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "craft.make",
+        "furnace.smelt",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "item.use",
+        "navigation.control",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local",
+        "world.portal"
+      ],
+      "simActions": [
+        "activate_block",
+        "activate_entity",
+        "activate_entity_at",
+        "consume",
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "furnace_inspect",
+        "furnace_put",
+        "furnace_take",
+        "inventory_move",
+        "look",
+        "look_at",
+        "look_at_entity",
+        "move",
+        "move_ticks",
+        "navigate",
+        "select_slot",
+        "toss",
+        "unequip",
+        "use_item",
+        "use_item_ticks",
+        "wait_ticks",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "furnace.smelt",
+        "gather.collect",
+        "world.portal"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-35",
+      "title": "抗火药水",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "brewing.brew",
+        "combat.melee",
+        "craft.make",
+        "furnace.smelt",
+        "inventory.equip",
+        "item.use",
+        "navigation.control",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local",
+        "world.portal"
+      ],
+      "simActions": [
+        "activate_block",
+        "activate_entity",
+        "activate_entity_at",
+        "attack_once",
+        "brewing_inspect",
+        "brewing_put",
+        "brewing_take",
+        "consume",
+        "craft",
+        "craft_output",
+        "equip",
+        "furnace_inspect",
+        "furnace_put",
+        "furnace_take",
+        "look",
+        "look_at",
+        "look_at_entity",
+        "move",
+        "move_ticks",
+        "navigate",
+        "select_slot",
+        "unequip",
+        "use_item",
+        "use_item_ticks",
+        "wait_ticks",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "brewing.brew",
+        "combat.melee",
+        "furnace.smelt",
+        "world.portal"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-36",
+      "title": "末影之眼",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "combat.melee",
+        "craft.make",
+        "inventory.equip",
+        "item.use",
+        "navigation.control",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local",
+        "world.portal"
+      ],
+      "simActions": [
+        "activate_block",
+        "activate_entity",
+        "activate_entity_at",
+        "attack_once",
+        "consume",
+        "craft",
+        "craft_output",
+        "equip",
+        "look",
+        "look_at",
+        "look_at_entity",
+        "move",
+        "move_ticks",
+        "navigate",
+        "select_slot",
+        "unequip",
+        "use_item",
+        "use_item_ticks",
+        "wait_ticks",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "combat.melee",
+        "world.portal"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-37",
+      "title": "可运行铁路",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "block.place",
+        "craft.make",
+        "furnace.smelt",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.goto",
+        "observe.snapshot",
+        "vehicle.dismount",
+        "vehicle.drive",
+        "vehicle.mount",
+        "verify.local",
+        "world.redstone"
+      ],
+      "simActions": [
+        "activate_block",
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "dismount",
+        "equip",
+        "furnace_inspect",
+        "furnace_put",
+        "furnace_take",
+        "inventory_move",
+        "look",
+        "look_at",
+        "mount",
+        "navigate",
+        "place",
+        "place_entity",
+        "select_slot",
+        "toss",
+        "unequip",
+        "vehicle_control",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "block.place",
+        "furnace.smelt",
+        "gather.collect",
+        "vehicle.dismount",
+        "vehicle.drive",
+        "vehicle.mount",
+        "world.redstone"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-38",
+      "title": "跨河木桥",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "block.place",
+        "build.blueprint",
+        "craft.make",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "item.use",
+        "navigation.control",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "activate_block",
+        "activate_entity",
+        "activate_entity_at",
+        "consume",
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "inventory_move",
+        "look",
+        "look_at",
+        "look_at_entity",
+        "move",
+        "move_ticks",
+        "navigate",
+        "place",
+        "place_entity",
+        "select_slot",
+        "toss",
+        "unequip",
+        "use_item",
+        "use_item_ticks",
+        "wait_ticks"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "block.place",
+        "build.blueprint",
+        "gather.collect"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-39",
+      "title": "农牧小基地",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "animal.interact",
+        "block.break",
+        "block.place",
+        "craft.make",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "item.use",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local",
+        "world.wait_until"
+      ],
+      "simActions": [
+        "activate_block",
+        "activate_entity",
+        "activate_entity_at",
+        "consume",
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "inventory_move",
+        "look",
+        "look_at",
+        "navigate",
+        "place",
+        "place_entity",
+        "select_slot",
+        "toss",
+        "unequip",
+        "use_item",
+        "use_item_ticks",
+        "wait",
+        "wait_ticks",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "animal.interact",
+        "block.place",
+        "gather.collect"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-40",
+      "title": "完整远征装备",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "block.place",
+        "craft.make",
+        "furnace.smelt",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "item.use",
+        "navigation.goto",
+        "npc.say",
+        "observe.snapshot",
+        "plan.checkpoint",
+        "plan.resume",
+        "plan.revise",
+        "verify.local",
+        "world.wait_until"
+      ],
+      "simActions": [
+        "activate_block",
+        "activate_entity",
+        "activate_entity_at",
+        "consume",
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "furnace_inspect",
+        "furnace_put",
+        "furnace_take",
+        "inventory_move",
+        "look",
+        "look_at",
+        "navigate",
+        "place",
+        "place_entity",
+        "say",
+        "select_slot",
+        "toss",
+        "unequip",
+        "use_item",
+        "use_item_ticks",
+        "wait",
+        "wait_ticks",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "block.place",
+        "furnace.smelt",
+        "gather.collect",
+        "plan.checkpoint",
+        "plan.resume",
+        "plan.revise"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-41",
+      "title": "全套钻石甲",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "craft.make",
+        "furnace.smelt",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.goto",
+        "npc.say",
+        "observe.snapshot",
+        "plan.checkpoint",
+        "plan.resume",
+        "plan.revise",
+        "verify.local"
+      ],
+      "simActions": [
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "furnace_inspect",
+        "furnace_put",
+        "furnace_take",
+        "inventory_move",
+        "navigate",
+        "say",
+        "select_slot",
+        "toss",
+        "unequip"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "furnace.smelt",
+        "gather.collect",
+        "plan.checkpoint",
+        "plan.resume",
+        "plan.revise"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-42",
+      "title": "烈焰棒远征",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "combat.melee",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "item.use",
+        "navigation.control",
+        "navigation.goto",
+        "npc.say",
+        "observe.snapshot",
+        "plan.checkpoint",
+        "plan.resume",
+        "plan.revise",
+        "verify.local",
+        "world.portal"
+      ],
+      "simActions": [
+        "activate_block",
+        "activate_entity",
+        "activate_entity_at",
+        "attack_once",
+        "consume",
+        "container_inspect",
+        "container_transfer",
+        "dig",
+        "equip",
+        "inventory_move",
+        "look",
+        "look_at",
+        "look_at_entity",
+        "move",
+        "move_ticks",
+        "navigate",
+        "say",
+        "select_slot",
+        "toss",
+        "unequip",
+        "use_item",
+        "use_item_ticks",
+        "wait_ticks",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "combat.melee",
+        "gather.collect",
+        "plan.checkpoint",
+        "plan.resume",
+        "plan.revise",
+        "world.portal"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-43",
+      "title": "下界作物迁移",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "block.place",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "item.use",
+        "navigation.control",
+        "navigation.goto",
+        "npc.say",
+        "observe.snapshot",
+        "plan.checkpoint",
+        "plan.resume",
+        "plan.revise",
+        "verify.local",
+        "world.portal",
+        "world.wait_until"
+      ],
+      "simActions": [
+        "activate_block",
+        "activate_entity",
+        "activate_entity_at",
+        "consume",
+        "container_inspect",
+        "container_transfer",
+        "dig",
+        "equip",
+        "inventory_move",
+        "look",
+        "look_at",
+        "look_at_entity",
+        "move",
+        "move_ticks",
+        "navigate",
+        "place",
+        "place_entity",
+        "say",
+        "select_slot",
+        "toss",
+        "unequip",
+        "use_item",
+        "use_item_ticks",
+        "wait",
+        "wait_ticks",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "block.place",
+        "gather.collect",
+        "plan.checkpoint",
+        "plan.resume",
+        "plan.revise",
+        "world.portal"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-44",
+      "title": "延长力量药水",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "brewing.brew",
+        "combat.melee",
+        "craft.make",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.control",
+        "navigation.goto",
+        "npc.say",
+        "observe.snapshot",
+        "plan.checkpoint",
+        "plan.resume",
+        "plan.revise",
+        "verify.local",
+        "world.portal"
+      ],
+      "simActions": [
+        "activate_block",
+        "attack_once",
+        "brewing_inspect",
+        "brewing_put",
+        "brewing_take",
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "inventory_move",
+        "look",
+        "look_at",
+        "look_at_entity",
+        "move",
+        "move_ticks",
+        "navigate",
+        "say",
+        "select_slot",
+        "toss",
+        "unequip",
+        "wait_ticks",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "brewing.brew",
+        "combat.melee",
+        "gather.collect",
+        "plan.checkpoint",
+        "plan.resume",
+        "plan.revise",
+        "world.portal"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-45",
+      "title": "完整高级附魔流程",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "block.place",
+        "craft.make",
+        "enchanting.enchant",
+        "furnace.smelt",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.goto",
+        "npc.say",
+        "observe.snapshot",
+        "plan.checkpoint",
+        "plan.resume",
+        "plan.revise",
+        "verify.local"
+      ],
+      "simActions": [
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "enchant",
+        "equip",
+        "furnace_inspect",
+        "furnace_put",
+        "furnace_take",
+        "inventory_move",
+        "look",
+        "look_at",
+        "navigate",
+        "place",
+        "place_entity",
+        "say",
+        "select_slot",
+        "toss",
+        "unequip"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "block.place",
+        "furnace.smelt",
+        "gather.collect",
+        "plan.checkpoint",
+        "plan.resume",
+        "plan.revise"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-46",
+      "title": "交易与铁砧附魔",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "anvil.process",
+        "block.break",
+        "craft.make",
+        "furnace.smelt",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.goto",
+        "npc.say",
+        "observe.snapshot",
+        "plan.checkpoint",
+        "plan.resume",
+        "plan.revise",
+        "verify.local",
+        "villager.manage_job",
+        "villager.trade"
+      ],
+      "simActions": [
+        "anvil",
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "furnace_inspect",
+        "furnace_put",
+        "furnace_take",
+        "inventory_move",
+        "navigate",
+        "place",
+        "say",
+        "select_slot",
+        "toss",
+        "trade",
+        "trade_inspect",
+        "unequip",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "furnace.smelt",
+        "gather.collect",
+        "plan.checkpoint",
+        "plan.resume",
+        "plan.revise",
+        "villager.manage_job"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-47",
+      "title": "自给生存基地",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "animal.interact",
+        "block.break",
+        "block.place",
+        "build.blueprint",
+        "craft.make",
+        "furnace.smelt",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "item.use",
+        "navigation.goto",
+        "npc.say",
+        "observe.snapshot",
+        "plan.checkpoint",
+        "plan.resume",
+        "plan.revise",
+        "verify.local",
+        "world.wait_until"
+      ],
+      "simActions": [
+        "activate_block",
+        "activate_entity",
+        "activate_entity_at",
+        "consume",
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "furnace_inspect",
+        "furnace_put",
+        "furnace_take",
+        "inventory_move",
+        "look",
+        "look_at",
+        "navigate",
+        "place",
+        "place_entity",
+        "say",
+        "select_slot",
+        "toss",
+        "unequip",
+        "use_item",
+        "use_item_ticks",
+        "wait",
+        "wait_ticks",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "animal.interact",
+        "block.place",
+        "build.blueprint",
+        "furnace.smelt",
+        "gather.collect",
+        "plan.checkpoint",
+        "plan.resume",
+        "plan.revise"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-48",
+      "title": "中断后继续建房",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "block.place",
+        "build.blueprint",
+        "craft.make",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.goto",
+        "npc.say",
+        "observe.snapshot",
+        "plan.checkpoint",
+        "plan.resume",
+        "plan.revise",
+        "verify.local"
+      ],
+      "simActions": [
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "inventory_move",
+        "look",
+        "look_at",
+        "navigate",
+        "place",
+        "place_entity",
+        "say",
+        "select_slot",
+        "toss",
+        "unequip"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "block.place",
+        "build.blueprint",
+        "gather.collect",
+        "plan.checkpoint",
+        "plan.resume",
+        "plan.revise"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-49",
+      "title": "施工中修改需求",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "block.place",
+        "build.blueprint",
+        "craft.make",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.goto",
+        "npc.say",
+        "observe.snapshot",
+        "plan.checkpoint",
+        "plan.resume",
+        "plan.revise",
+        "verify.local"
+      ],
+      "simActions": [
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "inventory_move",
+        "look",
+        "look_at",
+        "navigate",
+        "place",
+        "place_entity",
+        "say",
+        "select_slot",
+        "toss",
+        "unequip"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "block.place",
+        "build.blueprint",
+        "gather.collect",
+        "plan.checkpoint",
+        "plan.resume",
+        "plan.revise"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-50",
+      "title": "草方块：完整生存路线",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "anvil.process",
+        "block.break",
+        "craft.make",
+        "enchanting.enchant",
+        "furnace.smelt",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.goto",
+        "npc.say",
+        "observe.snapshot",
+        "plan.checkpoint",
+        "plan.resume",
+        "plan.revise",
+        "verify.local",
+        "villager.manage_job",
+        "villager.trade"
+      ],
+      "simActions": [
+        "anvil",
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "enchant",
+        "equip",
+        "furnace_inspect",
+        "furnace_put",
+        "furnace_take",
+        "inventory_move",
+        "navigate",
+        "place",
+        "say",
+        "select_slot",
+        "toss",
+        "trade",
+        "trade_inspect",
+        "unequip",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "furnace.smelt",
+        "gather.collect",
+        "plan.checkpoint",
+        "plan.resume",
+        "plan.revise",
+        "villager.manage_job"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-51",
+      "title": "制箭台边界与制箭",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "craft.make",
+        "inventory.equip",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "craft",
+        "craft_output",
+        "equip",
+        "navigate",
+        "select_slot",
+        "unequip"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-52",
+      "title": "制箭师职业与交易",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.place",
+        "inventory.equip",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local",
+        "villager.manage_job",
+        "villager.trade"
+      ],
+      "simActions": [
+        "dig",
+        "equip",
+        "look",
+        "look_at",
+        "navigate",
+        "place",
+        "place_entity",
+        "select_slot",
+        "trade",
+        "trade_inspect",
+        "unequip",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "block.place",
+        "villager.manage_job"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-53",
+      "title": "识别交易后的职业锁定",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "inventory.equip",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local",
+        "villager.manage_job",
+        "villager.trade"
+      ],
+      "simActions": [
+        "dig",
+        "equip",
+        "navigate",
+        "place",
+        "select_slot",
+        "trade",
+        "trade_inspect",
+        "unequip",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "villager.manage_job"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-54",
+      "title": "砂轮与诅咒边界",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local",
+        "workstation.process"
+      ],
+      "simActions": [
+        "container_inspect",
+        "container_transfer",
+        "equip",
+        "inventory_move",
+        "navigate",
+        "select_slot",
+        "toss",
+        "unequip"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "workstation.process"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-55",
+      "title": "制图台扩图与锁图",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local",
+        "workstation.process"
+      ],
+      "simActions": [
+        "container_inspect",
+        "container_transfer",
+        "equip",
+        "inventory_move",
+        "navigate",
+        "select_slot",
+        "toss",
+        "unequip"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "workstation.process"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-56",
+      "title": "切石机材料效率",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local",
+        "workstation.process"
+      ],
+      "simActions": [
+        "container_inspect",
+        "container_transfer",
+        "dig",
+        "equip",
+        "inventory_move",
+        "navigate",
+        "select_slot",
+        "toss",
+        "unequip"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "gather.collect",
+        "workstation.process"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-57",
+      "title": "铁砧修复和命名",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "anvil.process",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "anvil",
+        "container_inspect",
+        "container_transfer",
+        "equip",
+        "inventory_move",
+        "navigate",
+        "select_slot",
+        "toss",
+        "unequip"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-58",
+      "title": "新版锻造台三输入升级",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "craft.make",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local",
+        "workstation.process"
+      ],
+      "simActions": [
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "equip",
+        "inventory_move",
+        "navigate",
+        "select_slot",
+        "toss",
+        "unequip"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "workstation.process"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-59",
+      "title": "合成器自动做火把",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "block.place",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local",
+        "workstation.process",
+        "world.redstone"
+      ],
+      "simActions": [
+        "activate_block",
+        "container_inspect",
+        "container_transfer",
+        "dig",
+        "equip",
+        "inventory_move",
+        "look",
+        "look_at",
+        "navigate",
+        "place",
+        "place_entity",
+        "select_slot",
+        "toss",
+        "unequip",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "block.place",
+        "gather.collect",
+        "workstation.process",
+        "world.redstone"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-60",
+      "title": "堆肥桶获取骨粉",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.place",
+        "inventory.equip",
+        "item.use",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local",
+        "world.wait_until"
+      ],
+      "simActions": [
+        "activate_block",
+        "activate_entity",
+        "activate_entity_at",
+        "consume",
+        "equip",
+        "look",
+        "look_at",
+        "navigate",
+        "place",
+        "place_entity",
+        "select_slot",
+        "unequip",
+        "use_item",
+        "use_item_ticks",
+        "wait",
+        "wait_ticks",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "block.place"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-61",
+      "title": "弓的蓄力和距离补偿",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "combat.shoot",
+        "inventory.equip",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "equip",
+        "look",
+        "look_at",
+        "navigate",
+        "select_slot",
+        "unequip",
+        "use_item_ticks"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "combat.shoot"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-62",
+      "title": "移动目标预判",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "combat.shoot",
+        "inventory.equip",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "equip",
+        "look",
+        "look_at",
+        "navigate",
+        "select_slot",
+        "unequip",
+        "use_item_ticks"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "combat.shoot"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-63",
+      "title": "弩的预装与切换",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "combat.shoot",
+        "inventory.equip",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "equip",
+        "look",
+        "look_at",
+        "navigate",
+        "select_slot",
+        "unequip",
+        "use_item_ticks"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "combat.shoot"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-64",
+      "title": "盾牌正面格挡",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "combat.shield",
+        "inventory.equip",
+        "navigation.control",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "equip",
+        "look",
+        "look_at",
+        "look_at_entity",
+        "move",
+        "move_ticks",
+        "navigate",
+        "select_slot",
+        "unequip",
+        "use_item_ticks",
+        "wait_ticks"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "combat.shield"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-65",
+      "title": "双方向威胁与转盾",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "combat.shield",
+        "inventory.equip",
+        "navigation.control",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "equip",
+        "look",
+        "look_at",
+        "look_at_entity",
+        "move",
+        "move_ticks",
+        "navigate",
+        "select_slot",
+        "unequip",
+        "use_item_ticks",
+        "wait_ticks"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "combat.shield"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-66",
+      "title": "近战攻击冷却",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "combat.melee",
+        "inventory.equip",
+        "navigation.control",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "attack_once",
+        "equip",
+        "look",
+        "look_at",
+        "look_at_entity",
+        "move",
+        "move_ticks",
+        "navigate",
+        "select_slot",
+        "unequip",
+        "wait_ticks"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "combat.melee"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-67",
+      "title": "跳劈暴击",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "combat.melee",
+        "inventory.equip",
+        "navigation.control",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "attack_once",
+        "equip",
+        "look",
+        "look_at",
+        "look_at_entity",
+        "move",
+        "move_ticks",
+        "navigate",
+        "select_slot",
+        "unequip",
+        "wait_ticks"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "combat.melee"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-68",
+      "title": "落地水与回收",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.place",
+        "inventory.equip",
+        "item.use",
+        "movement.clutch",
+        "navigation.control",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local",
+        "world.wait_until"
+      ],
+      "simActions": [
+        "activate_block",
+        "activate_entity",
+        "activate_entity_at",
+        "consume",
+        "equip",
+        "look",
+        "look_at",
+        "look_at_entity",
+        "move",
+        "move_ticks",
+        "navigate",
+        "place",
+        "place_entity",
+        "select_slot",
+        "unequip",
+        "use_item",
+        "use_item_ticks",
+        "wait",
+        "wait_ticks",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "block.place",
+        "movement.clutch"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-69",
+      "title": "划船运输与回收",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "animal.interact",
+        "inventory.equip",
+        "navigation.goto",
+        "observe.snapshot",
+        "vehicle.dismount",
+        "vehicle.drive",
+        "vehicle.mount",
+        "verify.local"
+      ],
+      "simActions": [
+        "activate_entity",
+        "activate_entity_at",
+        "dismount",
+        "equip",
+        "mount",
+        "navigate",
+        "place_entity",
+        "select_slot",
+        "unequip",
+        "use_item_ticks",
+        "vehicle_control"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "animal.interact",
+        "vehicle.dismount",
+        "vehicle.drive",
+        "vehicle.mount"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-70",
+      "title": "深水取物与呼吸管理",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "inventory.equip",
+        "inventory.transfer",
+        "item.use",
+        "navigation.control",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "activate_block",
+        "activate_entity",
+        "activate_entity_at",
+        "consume",
+        "container_inspect",
+        "container_transfer",
+        "equip",
+        "inventory_move",
+        "look",
+        "look_at",
+        "look_at_entity",
+        "move",
+        "move_ticks",
+        "navigate",
+        "select_slot",
+        "toss",
+        "unequip",
+        "use_item",
+        "use_item_ticks",
+        "wait_ticks"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-71",
+      "title": "射击标靶开门",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.place",
+        "combat.shoot",
+        "inventory.equip",
+        "inventory.transfer",
+        "item.use",
+        "navigation.control",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local",
+        "world.redstone"
+      ],
+      "simActions": [
+        "activate_block",
+        "activate_entity",
+        "activate_entity_at",
+        "consume",
+        "container_inspect",
+        "container_transfer",
+        "equip",
+        "inventory_move",
+        "look",
+        "look_at",
+        "look_at_entity",
+        "move",
+        "move_ticks",
+        "navigate",
+        "place",
+        "place_entity",
+        "select_slot",
+        "toss",
+        "unequip",
+        "use_item",
+        "use_item_ticks",
+        "wait_ticks",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "block.place",
+        "combat.shoot",
+        "world.redstone"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-72",
+      "title": "漏斗方向与转运",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.place",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local",
+        "world.redstone"
+      ],
+      "simActions": [
+        "activate_block",
+        "container_inspect",
+        "container_transfer",
+        "equip",
+        "inventory_move",
+        "look",
+        "look_at",
+        "navigate",
+        "place",
+        "place_entity",
+        "select_slot",
+        "toss",
+        "unequip",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "block.place",
+        "world.redstone"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-73",
+      "title": "红石火把反相",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.place",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local",
+        "world.redstone"
+      ],
+      "simActions": [
+        "activate_block",
+        "container_inspect",
+        "container_transfer",
+        "equip",
+        "inventory_move",
+        "look",
+        "look_at",
+        "navigate",
+        "place",
+        "place_entity",
+        "select_slot",
+        "toss",
+        "unequip",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "block.place",
+        "world.redstone"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-74",
+      "title": "黏性活塞推拉",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.place",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local",
+        "world.redstone"
+      ],
+      "simActions": [
+        "activate_block",
+        "container_inspect",
+        "container_transfer",
+        "equip",
+        "inventory_move",
+        "look",
+        "look_at",
+        "navigate",
+        "place",
+        "place_entity",
+        "select_slot",
+        "toss",
+        "unequip",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "block.place",
+        "world.redstone"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-75",
+      "title": "观察者甘蔗自动收获",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "block.place",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "item.use",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local",
+        "world.redstone",
+        "world.wait_until"
+      ],
+      "simActions": [
+        "activate_block",
+        "activate_entity",
+        "activate_entity_at",
+        "consume",
+        "container_inspect",
+        "container_transfer",
+        "dig",
+        "equip",
+        "inventory_move",
+        "look",
+        "look_at",
+        "navigate",
+        "place",
+        "place_entity",
+        "select_slot",
+        "toss",
+        "unequip",
+        "use_item",
+        "use_item_ticks",
+        "wait",
+        "wait_ticks",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "block.place",
+        "gather.collect",
+        "world.redstone"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-76",
+      "title": "考古刷取而非挖掘",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.place",
+        "inventory.equip",
+        "inventory.transfer",
+        "item.use",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local",
+        "world.archaeology",
+        "world.wait_until"
+      ],
+      "simActions": [
+        "activate_block",
+        "activate_entity",
+        "activate_entity_at",
+        "consume",
+        "container_inspect",
+        "container_transfer",
+        "equip",
+        "inventory_move",
+        "look",
+        "look_at",
+        "navigate",
+        "place",
+        "place_entity",
+        "select_slot",
+        "toss",
+        "unequip",
+        "use_item",
+        "use_item_ticks",
+        "wait",
+        "wait_ticks",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "block.place",
+        "world.archaeology"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-77",
+      "title": "灵魂沙气泡电梯",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.place",
+        "inventory.equip",
+        "item.use",
+        "navigation.control",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local",
+        "world.wait_until"
+      ],
+      "simActions": [
+        "activate_block",
+        "activate_entity",
+        "activate_entity_at",
+        "consume",
+        "equip",
+        "look",
+        "look_at",
+        "look_at_entity",
+        "move",
+        "move_ticks",
+        "navigate",
+        "place",
+        "place_entity",
+        "select_slot",
+        "unequip",
+        "use_item",
+        "use_item_ticks",
+        "wait",
+        "wait_ticks",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "block.place"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-78",
+      "title": "皮革靴与粉雪",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "inventory.equip",
+        "item.use",
+        "navigation.control",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "activate_block",
+        "activate_entity",
+        "activate_entity_at",
+        "consume",
+        "equip",
+        "look",
+        "look_at",
+        "look_at_entity",
+        "move",
+        "move_ticks",
+        "navigate",
+        "select_slot",
+        "unequip",
+        "use_item",
+        "use_item_ticks",
+        "wait_ticks"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-79",
+      "title": "幽匿振动与羊毛隔离",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.place",
+        "inventory.equip",
+        "inventory.transfer",
+        "item.use",
+        "navigation.control",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "activate_block",
+        "activate_entity",
+        "activate_entity_at",
+        "consume",
+        "container_inspect",
+        "container_transfer",
+        "equip",
+        "inventory_move",
+        "look",
+        "look_at",
+        "look_at_entity",
+        "move",
+        "move_ticks",
+        "navigate",
+        "place",
+        "place_entity",
+        "select_slot",
+        "toss",
+        "unequip",
+        "use_item",
+        "use_item_ticks",
+        "wait_ticks"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "block.place"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-80",
+      "title": "下界重生锚",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.place",
+        "inventory.equip",
+        "item.use",
+        "navigation.control",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local",
+        "world.wait_until"
+      ],
+      "simActions": [
+        "activate_block",
+        "activate_entity",
+        "activate_entity_at",
+        "consume",
+        "equip",
+        "look",
+        "look_at",
+        "look_at_entity",
+        "move",
+        "move_ticks",
+        "navigate",
+        "place",
+        "place_entity",
+        "select_slot",
+        "unequip",
+        "use_item",
+        "use_item_ticks",
+        "wait",
+        "wait_ticks",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "block.place"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-81",
+      "title": "普通试炼刷怪笼",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "combat.melee",
+        "combat.shield",
+        "combat.shoot",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.control",
+        "navigation.goto",
+        "observe.snapshot",
+        "trial.interact",
+        "verify.local"
+      ],
+      "simActions": [
+        "activate_block",
+        "attack_once",
+        "consume",
+        "container_inspect",
+        "container_transfer",
+        "equip",
+        "inventory_move",
+        "look",
+        "look_at",
+        "look_at_entity",
+        "move",
+        "move_ticks",
+        "navigate",
+        "select_slot",
+        "toss",
+        "unequip",
+        "use_item_ticks",
+        "wait_ticks"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "combat.melee",
+        "combat.shield",
+        "combat.shoot",
+        "trial.interact"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-82",
+      "title": "宝库与单人领取状态",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "block.place",
+        "combat.melee",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "item.use",
+        "navigation.goto",
+        "observe.snapshot",
+        "trial.interact",
+        "verify.local",
+        "world.wait_until"
+      ],
+      "simActions": [
+        "activate_block",
+        "activate_entity",
+        "activate_entity_at",
+        "attack_once",
+        "consume",
+        "container_inspect",
+        "container_transfer",
+        "dig",
+        "equip",
+        "inventory_move",
+        "look",
+        "look_at",
+        "move_ticks",
+        "navigate",
+        "place",
+        "place_entity",
+        "select_slot",
+        "toss",
+        "unequip",
+        "use_item",
+        "use_item_ticks",
+        "wait",
+        "wait_ticks",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "block.place",
+        "combat.melee",
+        "gather.collect",
+        "trial.interact"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-83",
+      "title": "不祥之瓶与不祥试炼",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "combat.melee",
+        "combat.shield",
+        "combat.shoot",
+        "inventory.equip",
+        "inventory.transfer",
+        "item.use",
+        "navigation.control",
+        "navigation.goto",
+        "observe.snapshot",
+        "trial.interact",
+        "verify.local"
+      ],
+      "simActions": [
+        "activate_block",
+        "activate_entity",
+        "activate_entity_at",
+        "attack_once",
+        "consume",
+        "container_inspect",
+        "container_transfer",
+        "equip",
+        "inventory_move",
+        "look",
+        "look_at",
+        "look_at_entity",
+        "move",
+        "move_ticks",
+        "navigate",
+        "select_slot",
+        "toss",
+        "unequip",
+        "use_item",
+        "use_item_ticks",
+        "wait_ticks"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "combat.melee",
+        "combat.shield",
+        "combat.shoot",
+        "trial.interact"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-84",
+      "title": "风弹起跳与重锤重击",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "combat.melee",
+        "inventory.equip",
+        "movement.clutch",
+        "navigation.control",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "activate_block",
+        "attack_once",
+        "equip",
+        "look",
+        "look_at",
+        "look_at_entity",
+        "move",
+        "move_ticks",
+        "navigate",
+        "select_slot",
+        "unequip",
+        "use_item_ticks",
+        "wait_ticks"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "combat.melee",
+        "movement.clutch"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-85",
+      "title": "旋风人的远程反制",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "combat.melee",
+        "inventory.equip",
+        "navigation.control",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "attack_once",
+        "equip",
+        "look",
+        "look_at",
+        "look_at_entity",
+        "move",
+        "move_ticks",
+        "navigate",
+        "select_slot",
+        "unequip",
+        "wait_ticks"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "combat.melee"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-86",
+      "title": "干枯恶魂水合",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.place",
+        "inventory.equip",
+        "item.use",
+        "navigation.goto",
+        "observe.snapshot",
+        "plan.checkpoint",
+        "verify.local",
+        "world.wait_until"
+      ],
+      "simActions": [
+        "activate_block",
+        "activate_entity",
+        "activate_entity_at",
+        "consume",
+        "equip",
+        "look",
+        "look_at",
+        "navigate",
+        "place",
+        "place_entity",
+        "select_slot",
+        "unequip",
+        "use_item",
+        "use_item_ticks",
+        "wait",
+        "wait_ticks",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "block.place",
+        "plan.checkpoint"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-87",
+      "title": "喂养小恶魂与制作挽具",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "animal.interact",
+        "craft.make",
+        "inventory.equip",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local",
+        "world.wait_until"
+      ],
+      "simActions": [
+        "activate_entity",
+        "activate_entity_at",
+        "craft",
+        "craft_output",
+        "equip",
+        "navigate",
+        "select_slot",
+        "unequip",
+        "use_item_ticks",
+        "wait",
+        "wait_ticks",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "animal.interact"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-88",
+      "title": "快乐恶魂驾驶与安全离乘",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "animal.interact",
+        "inventory.equip",
+        "navigation.goto",
+        "observe.snapshot",
+        "vehicle.dismount",
+        "vehicle.drive",
+        "vehicle.mount",
+        "verify.local"
+      ],
+      "simActions": [
+        "activate_entity",
+        "activate_entity_at",
+        "dismount",
+        "equip",
+        "mount",
+        "navigate",
+        "place_entity",
+        "select_slot",
+        "unequip",
+        "use_item_ticks",
+        "vehicle_control"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "animal.interact",
+        "vehicle.dismount",
+        "vehicle.drive",
+        "vehicle.mount"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-89",
+      "title": "生物之间的拴绳与剪断",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "animal.interact",
+        "animal.leash",
+        "inventory.equip",
+        "navigation.control",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "activate_entity",
+        "activate_entity_at",
+        "equip",
+        "look",
+        "look_at",
+        "look_at_entity",
+        "move",
+        "move_ticks",
+        "navigate",
+        "select_slot",
+        "unequip",
+        "use_item_ticks",
+        "wait_ticks"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "animal.interact",
+        "animal.leash"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-90",
+      "title": "可合成的鞍与剪下装备",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "animal.interact",
+        "craft.make",
+        "inventory.equip",
+        "navigation.goto",
+        "observe.snapshot",
+        "vehicle.dismount",
+        "vehicle.drive",
+        "vehicle.mount",
+        "verify.local"
+      ],
+      "simActions": [
+        "activate_entity",
+        "activate_entity_at",
+        "craft",
+        "craft_output",
+        "dismount",
+        "equip",
+        "mount",
+        "navigate",
+        "place_entity",
+        "select_slot",
+        "unequip",
+        "use_item_ticks",
+        "vehicle_control"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "animal.interact",
+        "vehicle.dismount",
+        "vehicle.drive",
+        "vehicle.mount"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-91",
+      "title": "快乐恶魂吊运载牛船",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "animal.interact",
+        "animal.leash",
+        "inventory.equip",
+        "navigation.control",
+        "navigation.goto",
+        "observe.snapshot",
+        "vehicle.dismount",
+        "vehicle.drive",
+        "vehicle.mount",
+        "verify.local"
+      ],
+      "simActions": [
+        "activate_entity",
+        "activate_entity_at",
+        "dismount",
+        "equip",
+        "look",
+        "look_at",
+        "look_at_entity",
+        "mount",
+        "move",
+        "move_ticks",
+        "navigate",
+        "place_entity",
+        "select_slot",
+        "unequip",
+        "use_item_ticks",
+        "vehicle_control",
+        "wait_ticks"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "animal.interact",
+        "animal.leash",
+        "vehicle.dismount",
+        "vehicle.drive",
+        "vehicle.mount"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-92",
+      "title": "反弹恶魂火球取得Tears",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "combat.melee",
+        "combat.parry",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.control",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "attack_once",
+        "container_inspect",
+        "container_transfer",
+        "dig",
+        "equip",
+        "inventory_move",
+        "look",
+        "look_at",
+        "look_at_entity",
+        "move",
+        "move_ticks",
+        "navigate",
+        "select_slot",
+        "toss",
+        "unequip",
+        "wait_ticks"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "combat.melee",
+        "combat.parry",
+        "gather.collect"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-93",
+      "title": "猪灵以物易物",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "item.use",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "activate_block",
+        "activate_entity",
+        "activate_entity_at",
+        "consume",
+        "container_inspect",
+        "container_transfer",
+        "dig",
+        "equip",
+        "inventory_move",
+        "navigate",
+        "select_slot",
+        "toss",
+        "unequip",
+        "use_item",
+        "use_item_ticks"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "gather.collect"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-94",
+      "title": "犰狳鳞甲与狼铠",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "animal.interact",
+        "block.break",
+        "craft.make",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "activate_entity",
+        "activate_entity_at",
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "equip",
+        "inventory_move",
+        "navigate",
+        "select_slot",
+        "toss",
+        "unequip",
+        "use_item_ticks"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "animal.interact",
+        "gather.collect"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-95",
+      "title": "收纳袋容量与取物",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "inventory.bundle",
+        "inventory.equip",
+        "inventory.transfer",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "container_inspect",
+        "container_transfer",
+        "equip",
+        "inventory_move",
+        "navigate",
+        "select_slot",
+        "toss",
+        "unequip"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "inventory.bundle"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-96",
+      "title": "雕刻南瓜与铁傀儡",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.place",
+        "inventory.equip",
+        "item.use",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local"
+      ],
+      "simActions": [
+        "activate_block",
+        "activate_entity",
+        "activate_entity_at",
+        "consume",
+        "equip",
+        "look",
+        "look_at",
+        "navigate",
+        "place",
+        "place_entity",
+        "select_slot",
+        "unequip",
+        "use_item",
+        "use_item_ticks"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "block.place"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-97",
+      "title": "铜块涂蜡与刮除顺序",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.place",
+        "inventory.equip",
+        "item.use",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local",
+        "world.wait_until"
+      ],
+      "simActions": [
+        "activate_block",
+        "activate_entity",
+        "activate_entity_at",
+        "consume",
+        "equip",
+        "look",
+        "look_at",
+        "navigate",
+        "place",
+        "place_entity",
+        "select_slot",
+        "unequip",
+        "use_item",
+        "use_item_ticks",
+        "wait",
+        "wait_ticks",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "block.place"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-98",
+      "title": "识别咬钩的钓鱼",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.break",
+        "block.place",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "item.use",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local",
+        "world.fish",
+        "world.wait_until"
+      ],
+      "simActions": [
+        "activate_block",
+        "activate_entity",
+        "activate_entity_at",
+        "consume",
+        "container_inspect",
+        "container_transfer",
+        "dig",
+        "equip",
+        "fish_once",
+        "inventory_move",
+        "look",
+        "look_at",
+        "navigate",
+        "place",
+        "place_entity",
+        "select_slot",
+        "toss",
+        "unequip",
+        "use_item",
+        "use_item_ticks",
+        "wait",
+        "wait_ticks",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "block.place",
+        "gather.collect"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-99",
+      "title": "防守反击与战备恢复",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "block.place",
+        "combat.melee",
+        "combat.shield",
+        "combat.shoot",
+        "inventory.equip",
+        "inventory.transfer",
+        "item.use",
+        "navigation.control",
+        "navigation.goto",
+        "observe.snapshot",
+        "verify.local",
+        "world.wait_until"
+      ],
+      "simActions": [
+        "activate_block",
+        "activate_entity",
+        "activate_entity_at",
+        "attack_once",
+        "consume",
+        "container_inspect",
+        "container_transfer",
+        "equip",
+        "inventory_move",
+        "look",
+        "look_at",
+        "look_at_entity",
+        "move",
+        "move_ticks",
+        "navigate",
+        "place",
+        "place_entity",
+        "select_slot",
+        "toss",
+        "unequip",
+        "use_item",
+        "use_item_ticks",
+        "wait",
+        "wait_ticks",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "block.place",
+        "combat.melee",
+        "combat.shield",
+        "combat.shoot"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    },
+    {
+      "taskId": "MC-100",
+      "title": "从零建立天空运输能力",
+      "sourceActions": [
+        "action.cancel",
+        "action.status",
+        "animal.interact",
+        "block.break",
+        "block.place",
+        "craft.make",
+        "gather.collect",
+        "inventory.equip",
+        "inventory.transfer",
+        "item.use",
+        "navigation.goto",
+        "npc.say",
+        "observe.snapshot",
+        "plan.checkpoint",
+        "plan.resume",
+        "plan.revise",
+        "vehicle.dismount",
+        "vehicle.drive",
+        "vehicle.mount",
+        "verify.local",
+        "world.portal",
+        "world.wait_until"
+      ],
+      "simActions": [
+        "activate_block",
+        "activate_entity",
+        "activate_entity_at",
+        "consume",
+        "container_inspect",
+        "container_transfer",
+        "craft",
+        "craft_output",
+        "dig",
+        "dismount",
+        "equip",
+        "inventory_move",
+        "look",
+        "look_at",
+        "mount",
+        "navigate",
+        "place",
+        "place_entity",
+        "say",
+        "select_slot",
+        "toss",
+        "unequip",
+        "use_item",
+        "use_item_ticks",
+        "vehicle_control",
+        "wait",
+        "wait_ticks",
+        "wait_until"
+      ],
+      "simQueries": [
+        "find_blocks",
+        "inspect_block",
+        "recipes",
+        "snapshot",
+        "verify"
+      ],
+      "missingControllers": [
+        "animal.interact",
+        "block.place",
+        "gather.collect",
+        "plan.checkpoint",
+        "plan.resume",
+        "plan.revise",
+        "vehicle.dismount",
+        "vehicle.drive",
+        "vehicle.mount",
+        "world.portal"
+      ],
+      "liveValidation": "not_run",
+      "taskPassed": null
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "name": "sim-minecraft-actions",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "test": "tsc && node --test dist/test/*.test.js",
+    "start": "tsc && node dist/examples/console.js",
+    "companion": "tsc && node dist/examples/companion.js",
+    "schema": "tsc && node scripts/export-schema.cjs",
+    "analyze:benchmark": "tsc && node scripts/analyze-cocraftbench.cjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "mineflayer": "4.39.0",
+    "mineflayer-pathfinder": "2.4.5",
+    "vec3": "0.1.10",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.5",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2"
+  }
+}

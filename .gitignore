@@ -1,3 +1,4 @@
+# Python
 config.json
 config.*.local.json
 .venv/
@@ -6,7 +7,6 @@ __pycache__/
 executor/node_modules/
 runtime/
 .DS_Store
-.secrets/
 .env
 .env.*
 !.env.example
@@ -18,8 +18,17 @@ build/
 dist/
 .pytest_cache/
 .ruff_cache/
-node_modules/
 .coverage
 coverage/
 .idea/
 .vscode/
+
+# TypeScript SIM
+node_modules/
+dist/
+.env
+.secrets/
+.auth/
+logs/
+.pnpm-store/
+.reference/

@@ -1,0 +1,164 @@
+direction: right
+
+# ── 外部 ───────────────────────────────────────────────
+player: |md
+  **玩家**
+  与 agent 互动方式：聊天、（待定）
+|
+
+world: 世界
+
+# ── 交互 ───────────────────────────────────────────────
+interactor: 交互模块 {
+  gateway: 聊天网关/独立租约
+  guard: 权限/限流/去重
+  intent: 意图识别
+  session: 会话/指代/确认
+  router: 路由
+  responder: 回复/播报
+
+  gateway -> guard: "消息"
+  guard -> router: "stop 快路径"
+  guard -> intent: "普通消息"
+  intent -> session: "指代/澄清"
+  session -> router
+  router -> brain: "任务/查询/聊天"
+  router -> scheduler.intake: "原子指令"
+  router -> scheduler.control: "暂停/恢复/取消"
+  router -> controller.stop: "stop" {
+    style.stroke: "#c0392b"
+    style.stroke-dash: 4
+  }
+  brain -> responder: "回复"
+  scheduler.results -> responder: "任务状态"
+  controller.reporter -> responder: "stop 回执"
+  responder -> gateway: "发送"
+}
+
+# ── 中枢 ───────────────────────────────────────────────
+# 职责待确认；对外端口：intent.in / task.out
+# 内部展开：规划、记忆、世界模型等
+brain: 中枢 {
+}
+
+# ── 调度 ───────────────────────────────────────────────
+scheduler: 任务调度器 {
+  intake: 任务入口/校验
+  control: 控制/取消
+  task_graph: 任务图/依赖
+  queue: 就绪队列
+  stages: 状态机
+  dispatcher: 派发/抢占
+  results: 结果处理
+  recovery: 重试/补偿/恢复
+  ledger: 任务账本/幂等
+
+  intake -> task_graph: "校验 / 去重"
+  task_graph -> queue: "就绪任务"
+  control -> stages: "暂停 / 恢复 / 取消"
+  control -> dispatcher: "抢占 / 让权"
+  queue -> dispatcher: "候选任务"
+  dispatcher -> stages: "标记运行"
+  results -> stages: "更新结果"
+  results -> queue: "下一步"
+  results -> recovery: "失败 / 中断"
+  recovery -> queue: "重试 / 补偿"
+  recovery -> stages: "恢复进度"
+  results -> ledger: "结果 / 部分效果"
+  stages -> ledger: "持久化"
+  ledger -> stages: "启动对账" {
+    style.stroke-dash: 3
+  }
+}
+
+# ── 反射 ───────────────────────────────────────────────
+reflex: 反射
+
+# ── 执行 ───────────────────────────────────────────────
+controller: 控制器 {
+  resolver: 技能/动作解析
+  lease: 单一租约/忙/超时
+  runner: 动作执行
+  verifier: 结果验证/后置条件
+  reporter: 回执/证据/部分效果
+  stop: 急停/取消
+
+  resolver -> lease: "动作计划"
+  resolver -> reporter: "前置不满足" {
+    style.stroke-dash: 3
+  }
+  lease -> runner: "获得租约"
+  lease -> reporter: "busy" {
+    style.stroke-dash: 3
+  }
+  runner -> verifier: "执行结果"
+  verifier -> reporter: "验证 / 证据"
+  verifier -> lease: "原生结束 / 释放" {
+    style.stroke-dash: 3
+  }
+  stop -> lease: "取消，保留租约至清理"
+  stop -> reporter: "急停回执"
+}
+
+# move = 动作接口 / Mineflayer 适配层
+move: 动作接口
+
+# ── 连接 ───────────────────────────────────────────────
+
+# 玩家 ↔ 交互网关（聊天通道不占动作租约）
+player -> interactor.gateway: "聊天 / 指令"
+interactor.gateway -> player: "回复 / 状态"
+
+# 中枢 ↔ 调度器
+brain -> scheduler.intake: "计划 / 任务请求"
+scheduler.results -> brain: "任务状态 / 重规划请求"
+
+# 反射：告警 vs 抢占
+reflex -> brain: "告警"
+reflex -> scheduler.dispatcher: "抢占 / 急停"
+
+# 调度器 ↔ 控制器：命令与回执
+scheduler.dispatcher -> controller.resolver: "技能 / 动作命令"
+controller.reporter -> scheduler.results: "结果 / 部分效果 / 取消"
+
+# 取消路径：交互 stop 后通知调度器；调度器取消时也通知控制器
+controller.stop -> scheduler.control: "取消任务" {
+  style.stroke-dash: 3
+}
+scheduler.control -> controller.stop: "取消当前动作" {
+  style.stroke-dash: 3
+}
+
+# 控制器 → 动作接口
+controller.runner -> move: "原生调用"
+
+# 动作接口 → 控制器：执行回执 / 观测
+move -> controller.verifier: "回执 / 观测 / 错误"
+
+# 控制器前置 / 后置只读查询
+controller.resolver -> move: "前置查询" {
+  style.stroke-dash: 3
+}
+controller.verifier -> move: "后置查询" {
+  style.stroke-dash: 3
+}
+
+# 恢复对账：只读查询，不占动作租约
+scheduler.recovery -> move: "只读对账" {
+  style.stroke-dash: 3
+}
+
+# 动作接口 → 中枢：观测；中枢 → 动作接口：只读查询
+move -> brain: "观测 / 查询结果"
+brain -> move: "只读查询" {
+  style.stroke-dash: 3
+}
+
+# 动作接口 ↔ 世界
+move -> world: "动作"
+world -> move: "观测 / 事件"
+
+# 世界 → 反射
+world -> reflex: "刺激"
+
+# 任务状态 / stop 回执由 interactor 内部转发到 responder

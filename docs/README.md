@@ -1,37 +1,29 @@
 # 文档导航
 
-文档分为当前设计、当前状态与问题、历史计划。设计手册不意味着功能已经通过实机验收。
+## 推荐阅读顺序
 
-## 当前开发入口
+1. [项目README](../README.md)：启动、调用和目录入口。
+2. [当前进度](../PROJECT_STATUS.md)：已实现、已验证、未实现的事实。
+3. [完整动作目录](actions.md)：参数、前置条件、证据和能力边界。
+4. [架构与CoCraftBench分析](cocraftbench-analysis.md)：分层理由和需求分析。
+5. [开发路线](roadmap.md)：下一阶段工作与验收条件。
 
-| 顺序 | 文档 | 用途 |
-| --- | --- | --- |
-| 1 | [实施进度](implementation/PROGRESS.md) | 当前版本、实现范围和验证状态 |
-| 2 | [已知问题](implementation/KNOWN_ISSUES.md) | 最新任务证据与未解决问题 |
-| 3 | [Coordinator 自主规划修订](implementation/COORDINATOR_AUTONOMY.md) | 当前两层职责、业务契约与 Worker 验收编译 |
-| 4 | [两层运行说明](implementation/RUNNING.md) | 启动、多人聊天、恢复和预算 |
-| 5 | [系统架构](ARCHITECTURE.md) / [动作协议](PROTOCOL.md) | 实现模块与 Python / Node 边界 |
+## 文档与生成文件
 
-当前设计修订优先于旧手册中 Reviewer 和底层验收编写的规定。需求变更仍遵守根目录 [协作约定](../AGENTS.md)：先讨论、再设计，由用户敲定修改。
+|文件|用途|维护方式|
+|---|---|---|
+|actions.md|43个动作、5个查询的使用说明|随接口实现更新|
+|cocraftbench-analysis.md|固定源码版本的需求分析|修改结论时重新核对依据|
+|roadmap.md|计划与验收条件|阶段推进时更新|
+|actions.schema.json|动作参数的机器可读定义|修改src/schema.ts后执行pnpm schema，不手工修改|
+|queries.schema.json|只读查询的机器可读定义|同上|
+|cocraftbench-coverage.json|42个契约和100题的静态能力映射|修改scripts/analyze-cocraftbench.cjs后执行pnpm analyze:benchmark|
+|cocraftbench-tasks.md|逐题可读对照表|同上，不手工修改|
 
-## 使用与维护
+静态映射不表示任务通过；JSON Schema不表示物理机制已经可用。当前验证状态统一查阅 [PROJECT_STATUS.md](../PROJECT_STATUS.md)。
 
-- [零模型单动作调试](ACTION_DEBUG.md)：独立测试采集、移动、停止，不进入模型规划。
-- [采集与拾取修订、复测步骤](implementation/COLLECT_RELIABILITY.md)：树冠/高差、动态掉落、失败记录和验证边界。
+## 参考源码与复现
 
-- [安装与开发](DEVELOPMENT.md)
-- [DeepSeek / SiliconFlow 配置](MODELS.md)
-- [规划面板](DASHBOARD.md)
-- [能力与验收边界](VALIDATION.md)
-- [开发与验收脚本导航](../scripts/README.md)
+CoCraftBench参考副本位于 `.reference/CoCraftBench`，固定提交为`be208787b6d1831c8897e42a505319c04db5923b`。它不是SIM运行时依赖，不修改其中的任务和判据。
 
-## 设计背景与交接
-
-- [原始题目和开题 PPT](design/)
-- [初版详细实现手册](implementation/VANILLA_AGENT_V1.md)：整体实施背景，冲突部分以当前修订为准。
-- [交接提示词](implementation/LLM_HANDOFF.md)：同时提供当前进度、已知问题和架构修订。
-- [验收矩阵](implementation/VANILLA_ACCEPTANCE.md)：计划场景不等于已经通过；涉及旧 Reviewer 的项目需按当前职责修订后使用。
-- [历史实施记录](implementation/archive/PROGRESS_2026-10-28.md)：保留原始开发笔记，不作为当前状态。
-- [研究路线](ROADMAP.md) / [实验约定](../benchmarks/README.md)：学习和整合包工作后置。
-
-真实密钥、个人配置、完整运行日志和游戏存档留在本机，不纳入文档归档。
+`pnpm build`、`pnpm test`、`pnpm start`、`pnpm schema`不依赖该副本；重新生成benchmark映射需要它存在且提交一致。`.reference/`被Git忽略，因此未来新克隆SIM项目时，需要另行取得这个公开参考仓库的固定提交。参考版本变更后应先重新审查映射。
