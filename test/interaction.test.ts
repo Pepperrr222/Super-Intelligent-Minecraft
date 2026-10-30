@@ -99,7 +99,8 @@ class FakeScheduler implements SchedulerPort {
   pause(): number { return 1; }
   resume(): number { return 1; }
   cancel(): boolean { return true; }
-  stop(): void {}
+  stops: string[] = [];
+  stop(reason?: string): void { this.stops.push(reason ?? ''); }
 
   async runUntilIdle(): Promise<TaskSnapshot[]> {
     this.runCalls++;
@@ -168,14 +169,14 @@ function setup(options: {
 }
 
 test('stop is a fast path: no classifier, no brain, immediate controller.stop', async () => {
-  const { transport, classifier, brain, controller, service } = setup();
+  const { transport, classifier, brain, scheduler, service } = setup();
   classifier.envelope = { intent: { kind: 'chat', text: 'wrong' }, confidence: 1, rawText: '停' };
 
   await service.handle(message('停'));
 
   assert.equal(classifier.calls, 0);
   assert.equal(brain.calls.length, 0);
-  assert.deepEqual(controller.stops, ['玩家停止']);
+  assert.deepEqual(scheduler.stops, ['玩家停止']);
   assert.equal(transport.sent.at(-1)?.text, '已停。');
 });
 
@@ -299,6 +300,6 @@ test('rule classifier covers stop, control, status and task fallback', async () 
   const status = await classify('进度');
   assert.equal(status.kind, 'query');
   if (status.kind === 'query') assert.equal(status.scope, 'status');
-  assert.equal((await classify('建个房子')).kind, 'task');
+  assert.equal((await classify('建个房子')).kind, 'plan');
   assert.equal((await classify('你好')).kind, 'chat');
 });

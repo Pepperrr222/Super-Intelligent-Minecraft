@@ -6,6 +6,7 @@ export type LlmRequest = {
   user: string;
   temperature?: number;
   maxTokens?: number;
+  signal?: AbortSignal;
 };
 
 export interface LlmClient {
@@ -33,6 +34,9 @@ export class OpenAiCompatibleClient implements LlmClient {
   async complete(request: LlmRequest): Promise<string> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    const abort = () => controller.abort(request.signal?.reason);
+    if (request.signal?.aborted) abort();
+    else request.signal?.addEventListener('abort', abort, { once: true });
     try {
       const response = await this.fetcher(
         `${this.options.baseUrl.replace(/\/+$/u, '')}/chat/completions`,
@@ -64,6 +68,7 @@ export class OpenAiCompatibleClient implements LlmClient {
       return content;
     } finally {
       clearTimeout(timer);
+      request.signal?.removeEventListener('abort', abort);
     }
   }
 }
@@ -113,7 +118,7 @@ function readSecret(name: string): string | undefined {
  * Provider order: LLM_PROVIDER, then deepseek, then siliconflow.
  * The key is read but never returned or printed.
  */
-export function loadLlmFromSecrets(): LlmSetup | undefined {
+export function loadLlmFromSecrets(modelVariable = 'LLM_MODEL'): LlmSetup | undefined {
   const requested = process.env.LLM_PROVIDER?.toLowerCase();
   const candidates: LlmProvider[] = requested
     ? (requested === 'deepseek' || requested === 'siliconflow' ? [requested] : [])
@@ -124,7 +129,7 @@ export function loadLlmFromSecrets(): LlmSetup | undefined {
     if (!apiKey) continue;
     const defaults = PROVIDERS[provider];
     const baseUrl = process.env.LLM_BASE_URL?.trim() || defaults.baseUrl;
-    const model = process.env.LLM_MODEL?.trim() || defaults.model;
+    const model = process.env[modelVariable]?.trim() || process.env.LLM_MODEL?.trim() || defaults.model;
     const timeoutMs = Number(process.env.LLM_TIMEOUT_MS ?? 15_000);
     return {
       client: new OpenAiCompatibleClient({

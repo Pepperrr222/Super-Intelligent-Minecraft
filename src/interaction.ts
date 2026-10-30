@@ -1,3 +1,6 @@
+import { SkillCatalog } from './skills.js';
+import { boundedComplete, parseJsonObject } from './brain.js';
+import type { LlmClient } from './llm.js';
 import type { Action } from './schema.js';
 import type {
   ControllerPort,
@@ -37,8 +40,9 @@ export type Intent =
   | { kind: 'control.pause' | 'control.resume' | 'control.cancel'; taskId?: string }
   | { kind: 'query'; question: string; scope?: 'inventory' | 'world' | 'task' | 'status' | 'help' }
   | ActionIntent
-  | { kind: 'task'; goal: string; constraints?: string[] }
-  | { kind: 'chat'; text: string }
+  | { kind: 'task' | 'plan'; goal: string; constraints?: string[] }
+  | { kind: 'skill'; skill: string; params: unknown }
+  | { kind: 'chat' | 'direct.reply'; text: string }
   | { kind: 'clarify'; question: string };
 
 export type IntentEnvelope = {
@@ -76,6 +80,7 @@ export type BrainInput = {
   intent: Intent;
   session: SessionSnapshot;
   currentTask?: TaskSnapshot;
+  signal?: AbortSignal;
 };
 
 export type BrainOutput =
@@ -149,7 +154,8 @@ const CANCEL = /^(取消|取消任务|不做了|别做了|cancel)(吧|啊|!|！|
 const STATUS = /(状态|进度|到哪|在做什么|任务怎么样|status)/i;
 const HELP = /(帮助|help|你能做什么|会什么|怎么用)/i;
 const INVENTORY = /(背包|物品|有多少|带了什么|inventory)/i;
-const TASK_VERB = /(建|造|收集|挖|采|做|去|拿|给|找|跟随|跟着|过来|建造|制作|整理|熔炼)/;
+const COMPLEX = /(先.{1,40}(再|然后|接着)|(?:建造|建个|建一|build|construct).*(?:房|屋|house|base)|收集|采集|挖(?:矿|木|树)|制作|合成|熔炼|整理|collect|gather|craft|smelt|mine|build|make\s+(?:a|an)|destroy|拆除|丢弃|attack)/iu;
+const TASK_VERB = /(建|造|收集|挖|采|做|去|拿|给|找|跟随|跟着|过来|制作|整理|熔炼)/;
 const YES = /^(是|好|可以|确认|开始|执行|yes|y|ok|okay)(吧|啊|!|！|。|\.|\s)*$/i;
 const NO = /^(不|不要|取消|算了|no|n)(吧|啊|!|！|。|\.|\s)*$/i;
 
@@ -165,16 +171,41 @@ export class RuleBasedIntentClassifier implements IntentClassifier {
     if (PAUSE.test(text)) return { ...base, intent: { kind: 'control.pause' } };
     if (RESUME.test(text)) return { ...base, intent: { kind: 'control.resume' } };
     if (CANCEL.test(text)) return { ...base, intent: { kind: 'control.cancel' } };
-    if (HELP.test(text)) return { ...base, intent: { kind: 'query', question: text, scope: 'help' } };
-    if (STATUS.test(text)) return { ...base, intent: { kind: 'query', question: text, scope: 'status' } };
+    if (/^(帮助|help|你能做什么|会什么|怎么用)[?？!！。\s]*$/iu.test(text)) return { ...base, intent: { kind: 'query', question: text, scope: 'help' } };
+    if (/^(状态|进度|status)[?？!！。\s]*$/iu.test(text)) return { ...base, intent: { kind: 'query', question: text, scope: 'status' } };
+    if (/^(?:跟着|跟随)(?:他|她|它|他们|她们)|^follow\s+(?:him|her|them)\b/iu.test(text)) return { ...base, intent: { kind: 'clarify', question: '你想让我跟着谁？请明确目标。' } };
+    if (COMPLEX.test(text)) return { ...base, intent: { kind: 'plan', goal: text } };
+    const match = new SkillCatalog().match(text);
+    if (match) return { ...base, intent: { kind: 'skill', skill: match.id, params: match.params } };
     if (INVENTORY.test(text)) return { ...base, intent: { kind: 'query', question: text, scope: 'inventory' } };
     if (TASK_VERB.test(text)) {
-      return { ...base, confidence: 0.65, intent: { kind: 'task', goal: text } };
+      return { ...base, confidence: 0.65, intent: { kind: 'plan', goal: text } };
     }
     if (/[?？]$/.test(text)) {
       return { ...base, confidence: 0.55, intent: { kind: 'query', question: text } };
     }
     return { ...base, confidence: 0.4, intent: { kind: 'chat', text } };
+  }
+}
+
+/** Rule-first routing with a bounded, structured fallback for ambiguous messages. */
+export class IntentRouter extends RuleBasedIntentClassifier {
+  constructor(private readonly fastLlm?: LlmClient, private readonly timeoutMs = 1800) { super(); }
+  override async classify(input: { message: PlayerMessage; session?: SessionSnapshot; currentTask?: TaskSnapshot }): Promise<IntentEnvelope> {
+    const rule = await super.classify(input);
+    if (rule.intent.kind !== 'chat' || /^(你好|嗨|hello|hi)[!！。\s]*$/iu.test(rule.rawText) || !this.fastLlm) return rule;
+    try {
+      const parsed = parseJsonObject(await boundedComplete(this.fastLlm, { system: 'Classify the player message. Return only JSON: {"kind":"reply","text":"..."}, {"kind":"skill","skill":"follow_player|come_to_player|navigate_to|report_inventory","params":{}}, {"kind":"plan","goal":"..."}, or {"kind":"clarify","question":"..."}. Never invent targets or coordinates. navigate_to params require x,y,z integers. Use clarify for uncertain references.', user: JSON.stringify({ message: rule.rawText, recent: input.session?.recent.slice(-8), currentTask: input.currentTask ? { state: input.currentTask.state } : null }), maxTokens: 250, temperature: 0.1 }, this.timeoutMs));
+      if (parsed?.kind === 'skill' && typeof parsed.skill === 'string' && new SkillCatalog().get(parsed.skill)?.params.safeParse(parsed.params).success) {
+        const matched = new SkillCatalog().match(rule.rawText);
+        if (matched && matched.id === parsed.skill) return { ...rule, intent: { kind: 'skill', skill: matched.id, params: matched.params } };
+        return { ...rule, intent: { kind: 'clarify', question: '请明确目标，例如“跟着我”或“走到坐标 2 64 2”。' } };
+      }
+      if (parsed?.kind === 'plan' && typeof parsed.goal === 'string' && parsed.goal.trim()) return { ...rule, intent: { kind: 'plan', goal: parsed.goal } };
+      if (parsed?.kind === 'clarify' && typeof parsed.question === 'string') return { ...rule, intent: { kind: 'clarify', question: parsed.question } };
+      if (parsed?.kind === 'reply' && typeof parsed.text === 'string') return { ...rule, intent: { kind: 'direct.reply', text: parsed.text } };
+    } catch { /* deterministic fallback */ }
+    return { ...rule, intent: { kind: 'direct.reply', text: '我目前会跟随、过来、坐标导航和查背包。' } };
   }
 }
 
@@ -187,6 +218,10 @@ export class InteractionService {
   private readonly rates = new Map<string, number[]>();
   private readonly seen = new Map<string, number>();
   private unsubscribe?: () => void;
+  private planning?: { controller: AbortController; player: string };
+  private generation = 0;
+  private messageSequence = 0;
+  private latestGoalSequence = 0;
   private readonly config: InteractionConfig;
 
   constructor(
@@ -214,10 +249,12 @@ export class InteractionService {
   stop(): void {
     this.unsubscribe?.();
     this.unsubscribe = undefined;
+    this.cancelPlanning();
   }
 
   async handle(message: PlayerMessage): Promise<void> {
     const now = Date.now();
+    const sequence = ++this.messageSequence;
     const text = message.text.trim();
     if (this.config.botName && message.player === this.config.botName) return;
     if (!text) return;
@@ -226,7 +263,7 @@ export class InteractionService {
       return;
     }
     if (this.isDuplicate(message, now)) return;
-    if (!this.allowRate(message.player, now)) {
+    if (!isStopCommand(text) && !PAUSE.test(text) && !RESUME.test(text) && !CANCEL.test(text) && !this.allowRate(message.player, now)) {
       this.respond(message.player, '慢一点，我还在处理上一条。');
       return;
     }
@@ -241,9 +278,19 @@ export class InteractionService {
         this.respond(message.player, '只有 owner 或当前任务发起者能停。');
         return;
       }
-      this.clearPending(session);
-      this.controller.stop('玩家停止');
+      this.cancelPlanning();
+      for (const other of this.sessions.values()) this.clearPending(other);
+      this.scheduler.stop('玩家停止');
       this.respond(message.player, '已停。');
+      return;
+    }
+
+    const fastControl: Intent | undefined = PAUSE.test(text) ? { kind: 'control.pause' } : RESUME.test(text) ? { kind: 'control.resume' } : CANCEL.test(text) ? { kind: 'control.cancel' } : HELP.test(text) && /^(帮助|help|你能做什么|会什么|怎么用)[?？!！。\s]*$/iu.test(text) ? { kind: 'query', question: text, scope: 'help' } : STATUS.test(text) && /^(状态|进度|status)[?？!！。\s]*$/iu.test(text) ? { kind: 'query', question: text, scope: 'status' } : undefined;
+    if (fastControl) {
+      if (!this.allowed(message.player, fastControl)) { this.respond(message.player, '只有 owner 能让我执行任务或控制动作；聊天和查询可以继续。'); return; }
+      if (fastControl.kind === 'control.cancel' && this.planning) { this.cancelPlanning(); this.clearPending(session); const id = session.lastTaskId; if (id) this.scheduler.cancel(id, '玩家取消'); this.respond(message.player, '已取消。'); return; }
+      if (fastControl.kind === 'control.cancel') { this.cancelPlanning(); this.clearPending(session); }
+      await this.route(fastControl, message, session);
       return;
     }
 
@@ -272,6 +319,7 @@ export class InteractionService {
     }
 
     let envelope: IntentEnvelope;
+    const generation = this.generation;
     try {
       envelope = await this.classifier.classify({
         message,
@@ -283,11 +331,16 @@ export class InteractionService {
       return;
     }
 
+    if (generation !== this.generation) return;
     if (!this.allowed(message.player, envelope.intent)) {
       this.respond(message.player, '只有 owner 能让我执行任务或控制动作；聊天和查询可以继续。');
       return;
     }
 
+    if (envelope.intent.kind === 'skill' && envelope.intent.skill !== 'report_inventory' || envelope.intent.kind === 'plan' || envelope.intent.kind === 'task' || envelope.intent.kind === 'action') {
+      if (sequence < this.latestGoalSequence) return;
+      this.latestGoalSequence = sequence;
+    }
     session.lastIntent = envelope.intent;
     await this.route(envelope.intent, message, session);
   }
@@ -295,7 +348,8 @@ export class InteractionService {
   private async route(intent: Intent, message: PlayerMessage, session: SessionState): Promise<void> {
     switch (intent.kind) {
       case 'control.stop':
-        this.controller.stop(intent.reason ?? '玩家停止');
+        this.cancelPlanning();
+        this.scheduler.stop(intent.reason ?? '玩家停止');
         this.respond(message.player, '已停。');
         return;
       case 'control.pause': {
@@ -325,6 +379,21 @@ export class InteractionService {
         }
         await this.handleBrain(intent, message, session);
         return;
+      case 'plan': {
+        this.cancelPlanning();
+        const controller = new AbortController();
+        this.planning = { controller, player: message.player };
+        this.respond(message.player, '收到，我先规划一下。');
+        void this.handleBrain(intent, message, session, controller.signal).catch(() => { if (!controller.signal.aborted) this.respond(message.player, '规划失败，请稍后重试。'); }).finally(() => { if (this.planning?.controller === controller) this.planning = undefined; });
+        return;
+      }
+      case 'skill':
+        if (intent.skill !== 'report_inventory') this.cancelPlanning();
+        await this.handleBrain(intent, message, session);
+        return;
+      case 'direct.reply':
+        this.respond(message.player, intent.text);
+        return;
       case 'task':
       case 'chat':
         await this.handleBrain(intent, message, session);
@@ -339,13 +408,17 @@ export class InteractionService {
     }
   }
 
-  private async handleBrain(intent: Intent, message: PlayerMessage, session: SessionState): Promise<void> {
+  private async handleBrain(intent: Intent, message: PlayerMessage, session: SessionState, signal?: AbortSignal): Promise<void> {
+    const generation = this.generation;
     const output = await this.brain.handle({
       message,
       intent,
+      signal,
       session: this.snapshot(session),
       currentTask: session.lastTaskId ? this.scheduler.get(session.lastTaskId) : undefined,
     });
+    if (signal?.aborted || generation !== this.generation) return;
+    if (output.kind === 'task' && !this.allowed(message.player, { kind: 'task', goal: output.task.goal ?? '' })) { this.respond(message.player, '只有 owner 能执行任务。'); return; }
     switch (output.kind) {
       case 'reply':
         this.respond(message.player, output.text);
@@ -392,6 +465,12 @@ export class InteractionService {
       metadata: { owner: message.player, replyTo: message.player, interaction: 'action' },
     };
     this.submitTask(task, message.player, '收到，开始执行。');
+  }
+
+  private cancelPlanning(): void {
+    this.generation++;
+    this.planning?.controller.abort();
+    this.planning = undefined;
   }
 
   private submitTask(task: Task, player: string, ack = '收到，开始执行。'): void {
@@ -472,7 +551,7 @@ export class InteractionService {
   private allowed(player: string, intent: Intent): boolean {
     if (this.isOwner(player)) return true;
     if (!this.config.allowGuests) return false;
-    return intent.kind === 'chat' || intent.kind === 'query';
+    return intent.kind === 'chat' || intent.kind === 'direct.reply' || intent.kind === 'query' || intent.kind === 'clarify' || (intent.kind === 'skill' && intent.skill === 'report_inventory');
   }
 
   private session(player: string, now: number): SessionState {

@@ -4,7 +4,7 @@ import { ActionController } from './controller.js';
 import { TaskScheduler } from './scheduler.js';
 import {
   InteractionService,
-  RuleBasedIntentClassifier,
+  IntentRouter,
   type ActionResolverPort,
   type InteractionConfig,
 } from './interaction.js';
@@ -52,13 +52,15 @@ export class CompanionRuntime {
         ? { provider: 'custom', model: 'custom', baseUrl: 'custom' }
         : undefined;
 
+    const fastLlm = options.brain?.fastLlm ?? (loaded && process.env.LLM_FAST_MODEL ? loadLlmFromSecrets('LLM_FAST_MODEL')?.client : undefined) ?? llm;
+    const plannerLlm = options.brain?.plannerLlm ?? (loaded && process.env.LLM_PLANNER_MODEL ? loadLlmFromSecrets('LLM_PLANNER_MODEL')?.client : undefined) ?? llm;
     this.brain = new CompanionBrain(
       { query: input => this.actions.query(input) },
-      { ...options.brain, ...(llm ? { llm } : {}) },
+      { ...options.brain, ...(llm ? { llm } : {}), ...(fastLlm ? { fastLlm } : {}), ...(plannerLlm ? { plannerLlm } : {}) },
     );
     this.interaction = new InteractionService(
       this.transport,
-      new RuleBasedIntentClassifier(),
+      new IntentRouter(fastLlm, options.brain?.fastTimeoutMs),
       this.brain,
       this.scheduler,
       this.controller,

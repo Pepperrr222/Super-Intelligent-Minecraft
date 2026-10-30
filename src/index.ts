@@ -11,6 +11,7 @@ export { TaskScheduler, MemoryTaskLedger } from './scheduler.js';
 export {
   InteractionService,
   RuleBasedIntentClassifier,
+  IntentRouter,
   DEFAULT_INTERACTION_CONFIG,
   isStopCommand,
 } from './interaction.js';
@@ -55,3 +56,8 @@ export type {
   TaskState,
   TaskStep,
 } from './task.js';
+
+export { SkillCatalog, skills } from './skills.js';
+export type { Skill, SkillContext, SkillResult } from './skills.js';
+export { PlanValidator } from './planner.js';
+export type { Plan } from './planner.js';

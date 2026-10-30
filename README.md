@@ -29,7 +29,7 @@ SIM/
 
 此前已分析 CoCraftBench 的 42 个契约和全部 100 题，并补充熔炉、酿造槽位、交易、附魔、铁砧、钓鱼、物理刻控制、观测与条件等待。先读 [CoCraftBench 分析](docs/cocraftbench-analysis.md)，再查 [完整动作目录](docs/actions.md) 和 [100题对照表](docs/cocraftbench-tasks.md)。当前44个SIM动作是更细的实现单元，不与基准42个工具一一对应，也不兼容其完整请求/结果外壳。
 
-这是新的底层实现起点。意图分类仍是规则版，brain 已可选接入 LLM 规划/回复；持久记忆、持久任务账本和 Node-RED 尚未接入。现有自动测试使用模拟 Bot、假端口和假 LLM 检查执行/调度/交互语义，并有一条从玩家消息到动作执行的端到端模拟测试。
+这是新的底层实现起点。意图分类采用规则优先和可选 LLM 兜底，brain 可选接入 LLM 规划/回复；持久记忆、持久任务账本和 Node-RED 尚未接入。现有自动测试使用模拟 Bot、假端口和假 LLM 检查执行/调度/交互语义，并有一条从玩家消息到动作执行的端到端模拟测试。
 
 ## 运行与检查
 
@@ -73,6 +73,8 @@ pnpm companion
 ```powershell
 $env:LLM_PROVIDER = 'deepseek'        # 或 siliconflow
 $env:LLM_MODEL = 'deepseek-chat'      # 可选，默认按 provider
+$env:LLM_FAST_MODEL = '你的快速模型'  # 可选，需由同一 provider 提供
+$env:LLM_PLANNER_MODEL = '你的规划模型' # 可选，需由同一 provider 提供
 $env:LLM_BASE_URL = 'https://api.deepseek.com' # 可选
 $env:LLM_TIMEOUT_MS = '15000'
 ```
@@ -165,7 +167,9 @@ runtime.start();
 
 `CompanionRuntime` 会自动组装 `MinecraftActions → ActionController → TaskScheduler → CompanionBrain → InteractionService`。聊天回复走 `MineflayerChatTransport` 的直连 `bot.chat`，**不占用动作租约**；长任务执行时也能回话。
 
-`CompanionBrain` 目前是规则版：支持“过来”“跟着我”“背包里有什么”/位置查询和简单聊天；复杂任务会返回澄清，不会伪造计划。
+目前以规则优先路由：控制命令和四个技能（跟随、过来、坐标导航、背包查询）不调用模型；复杂目标先回执，再异步规划。计划只能引用已注册技能，并在入队前校验参数、动作、依赖和预算。模型不能直接提交底层动作；多步计划需确认。停止会取消规划和调度中的任务，丢弃迟到的规划结果。
+
+目前技能库还不能建房、采集或制作，规划器对这些目标会请求澄清。失败后的自动重规划、世界版本缓存以及真实服务器延迟验证尚未实现；不要把模拟测试当作实机验收。
 
 ## 统一结果
 
@@ -195,7 +199,9 @@ runtime.start();
 - `src/scheduler.ts`：任务队列、依赖、优先级、重试策略、暂停/取消与内存账本。
 - `src/interaction.ts`：聊天入口、权限/限流、规则意图、会话状态、澄清/确认与路由。
 - `src/chat.ts`：Mineflayer 聊天网关；收发不经过动作租约。
-- `src/brain.ts`：Brain v0，规则版“过来/跟着我/背包查询/位置查询”+ 可选 LLM 规划/回复。
+- `src/brain.ts`：技能编译、限时对话与异步计划生成。
+- `src/skills.ts`：确定性技能目录、参数与动作校验。
+- `src/planner.ts`：技能计划的依赖、预算与条件校验。
 - `src/llm.ts`：OpenAI 兼容客户端和 `.secrets` 加载；不记录 key。
 - `src/runtime.ts`：单 Bot 组合根，串起 actions/controller/scheduler/brain/interaction。
 - `src/index.ts`：上层模块的统一导入入口。

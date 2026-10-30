@@ -77,7 +77,7 @@ test('player command flows through interaction, brain, scheduler, controller and
   const queued = scheduler.list();
   assert.equal(queued.length, 1);
   assert.equal(queued[0]?.state, 'queued');
-  assert.equal(transport.sent.at(-1)?.text, '过来了。');
+  assert.equal(transport.sent.at(-1)?.text, '正在过去。');
 
   await scheduler.runUntilIdle();
 
@@ -154,5 +154,7 @@ test('unsupported complex task returns clarify instead of inventing a plan', asy
   await interaction.handle(message('建个房子', 'e2e-3'));
 
   assert.equal(scheduler.list().length, 0);
+  assert.match(transport.sent[0]?.text ?? '', /规划/);
+  await new Promise(resolve => setImmediate(resolve));
   assert.match(transport.sent.at(-1)?.text ?? '', /复杂任务规划还没实现/);
 });
