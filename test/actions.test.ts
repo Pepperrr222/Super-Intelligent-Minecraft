@@ -53,6 +53,21 @@ test('attack result reports sent, never claims damage or kill',async()=>{
   const r=await actions.execute({type:'attack_once',entityId:5});
   assert.deepEqual(r.data,{evidence:'attack_sent',damageConfirmed:false});assert.equal(hits,1);actions.dispose();
 });
+test('navigate accepts the same arrival nodes as the pathfinder',async()=>{
+  const {bot,actions}=fixture();
+  // Standing on a snow layer: the floored feet node is one block below the
+  // destination and 2.24 blocks away, but the node above it is in range.
+  // Pathfinder reports goal_reached for either node, so the postcondition
+  // must not reject the arrival afterwards.
+  bot.entity.position=new Vec3(0,63,2);
+  const reached=await actions.execute({type:'navigate',position:{x:2,y:64,z:2},range:2});
+  assert.equal(reached.status,'succeeded');
+  // Outside both nodes: this is a real failure, not a postcondition artefact.
+  const missed=await actions.execute({type:'navigate',position:{x:3,y:64,z:0},range:2});
+  assert.equal(missed.status,'failed');
+  assert.equal(missed.error?.code,'GOAL_NOT_REACHED');
+  actions.dispose();
+});
 test('follow stops when target disappears',async()=>{
   const {bot,actions}=fixture();let stopped=false;
   bot.entities[5]={id:5,isValid:true,position:new Vec3(1,0,0)};

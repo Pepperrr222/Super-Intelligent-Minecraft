@@ -47,7 +47,8 @@ test('wait_until observes property changes and cancellation cleans listeners',as
   const p=actions.execute({type:'wait_until',condition:{kind:'block_is',position,name:'furnace',properties:{lit:true}}});await tick();
   lit=true;bot.emit('blockUpdate');assert.equal((await p).status,'succeeded');
   lit=false;const p2=actions.execute({type:'wait_until',condition:{kind:'block_is',position,name:'furnace',properties:{lit:true}}});await tick();actions.stop();
-  assert.equal((await p2).status,'cancelled');assert.equal(bot.listenerCount('blockUpdate'),0);actions.dispose();
+  assert.equal((await p2).status,'cancelled');assert.equal(bot.listenerCount('blockUpdate'),1);actions.dispose();
+  assert.equal(bot.listenerCount('blockUpdate'),0); // permanent container-memory observer is also released
 });
 test('craft output converts requested count to recipe repetitions',async()=>{
   const {bot,slots,actions}=fixture();let repetitions=0;

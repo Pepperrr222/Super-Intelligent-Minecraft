@@ -32,3 +32,5 @@ dist/
 logs/
 .pnpm-store/
 .reference/
+.companion.local.json
+.prompt-approval.local.json

@@ -23,10 +23,23 @@ export type RetryPolicy = {
   retryOn?: Array<'error' | 'timeout'>;
 };
 
+/** A registered dynamic skill invocation. Params are validated by the skill registry. */
+export type SkillInvocation = {
+  id: string;
+  params: Record<string, unknown>;
+};
+
+export type ControllerProgress = {
+  at: number;
+  message: string;
+  data?: unknown;
+};
+
 export type TaskStep = {
   id: string;
   /** One step is one skill/action sequence. The controller runs these in order. */
   actions: Action[];
+  skill?: SkillInvocation;
   preconditions?: Condition[];
   postconditions?: Condition[];
   /** Applied to each underlying action. */
@@ -57,10 +70,13 @@ export type TaskRecord = {
   attempts: number;
   submittedAt: number;
   lastResult?: ControllerResult;
+  /** Bounded per-step results, used to build verified feedback. */
+  stepResults?: ControllerResult[];
 };
 
 export type TaskSnapshot = {
   id: string;
+  goal?: string;
   state: TaskState;
   currentStep: number;
   totalSteps: number;
@@ -70,6 +86,8 @@ export type TaskSnapshot = {
   dependsOn: string[];
   submittedAt: number;
   lastResult?: ControllerResult;
+  /** Bounded per-step results, used to build verified feedback. */
+  stepResults?: ControllerResult[];
 };
 
 export type ControllerCommand = {
@@ -98,6 +116,8 @@ export type ControllerResult = {
   data?: unknown;
   /** Every action attempt, including failed or cancelled ones. */
   partialEffects: ActionResult[];
+  /** Structured progress emitted by a dynamic skill. */
+  progress?: ControllerProgress[];
   error?: { code: string; message: string };
   leaseState: 'free' | 'held';
 };

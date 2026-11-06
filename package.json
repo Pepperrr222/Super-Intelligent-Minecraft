@@ -8,7 +8,9 @@
     "test": "tsc && node --test dist/test/*.test.js",
     "start": "tsc && node dist/examples/console.js",
     "companion": "tsc && node dist/examples/companion.js",
+    "diagnostics": "tsc && node dist/examples/diagnostics.js",
     "schema": "tsc && node scripts/export-schema.cjs",
+    "prompts:export": "tsc && node scripts/export-brain-prompts.mjs",
     "analyze:benchmark": "tsc && node scripts/analyze-cocraftbench.cjs"
   },
   "engines": {

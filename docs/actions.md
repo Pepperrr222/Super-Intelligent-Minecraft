@@ -1,11 +1,20 @@
 # 底层动作目录
 
-当前共有 **44种动作 + 5种查询**。原有19种动作保留；另外包含24种扩展动作及look_at_entity。所有写操作仍通过 `actions.execute()` 使用同一租约。`actions.query()` 是只读入口，不能向世界写数据。
+2026-11-05：观测接口增加统一目标引用与实体过滤，动作/查询数量仍为 45/14。`snapshot.entities[]`、`find_blocks.blocks[]` 和范围内 `inspect_block` 返回的 `ref` 可交给模型基本操作；原生接口仍使用坐标/id。`observe_targets` 新增 `blockNames`、`entityNames`、`itemNames`、`entityKinds`，旧 `names` 只过滤方块。
+
+sim-v2-7：底层动作/查询数量不变；新增上层 [持续阶段方案](stage-execution.md)，通过相同执行器连续组合基本操作。其 Schema 单独导出为 stage-plan.schema.json，不是新的原生动作或技能。
+
+2026-11-03：新增 crafting_options（goals、mode、includeDependencies、expandMembers 与需求搜索限制）和 container_memory（items、limit）。当前 45 动作、14 查询。模型 craft/craft_output 的 recipeRef 支持短内容引用；原生 craft 仍使用 64 位引用。容器检查与取放记录持久历史，仍走原有执行器；接口及限制见 [资源知识](resource-knowledge.md)。
+
+当前共有 **45种动作 + 14种查询**。原有44种动作全部提供模型操作入口，operate 在同一个 ActionExecutor 租约内绑定引用并执行。模型目录列出全部44种及版本/能力限制，详见 [完整操作目录](operation-catalog.md)。`actions.query()` 是只读入口，不能向世界写数据。
+
+2026-11-02：模型操作的装备位置、放置面、导航/跟随距离、看向部位、主副手和熔炉取出阈值改为显式必填，原生动作默认值暂留兼容。新增手持物品、掉落物身份/数量观察与本地位置引用；仅模拟验证，见 [V2 运行说明](agent-v2.md)。
 
 所有坐标都位于 Bot 当前维度。方块坐标必须是整数；视角、实体位置和 look_at 目标允许小数。物品使用版本注册表名称，如 oak_log，不加 minecraft: 前缀。
 
 | type | 参数 | Mineflayer 接口 | 完成条件 / 语义 |
 |---|---|---|---|
+| operate | operation | 观测引用复查 → 对应底层动作 | 不自动重试/导航/补材料；详细参数见 [基本操作接口](basic-operations.md) |
 | move | controls, durationMs | setControlState / clearControlStates | 按键持续指定时间；不保证移动距离 |
 | look | yaw, pitch | look | 转向完成；单位为弧度 |
 | look_at | position | lookAt | 转向指定坐标 |
@@ -22,7 +31,7 @@
 | activate_block | position | activateBlock | 对方块右键交互；具体效果需上层判断 |
 | activate_entity | entityId | activateEntity | 对实体右键交互；具体效果需上层判断 |
 | attack_once | entityId | attack | 发出一次攻击；不保证伤害或击杀 |
-| craft | item, repetitions, table? | recipesFor / craft | 按配方执行指定次数，检查产物增量 |
+| craft | item, repetitions, table?, recipeRef? | 指定配方或 recipesFor / craft / 背包对账 | 按配方执行指定次数，检查完整批次产物增量 |
 | toss | item, count | toss | 背包减少指定数量；不保证指定玩家收到 |
 | container_transfer | position, direction, item, count | openContainer / deposit / withdraw / close | 单次转移后检查背包增量并关窗 |
 | wait | durationMs | 可取消计时器 | 等待结束 |
@@ -61,7 +70,7 @@
 |wait_until|condition|公开事件 + 局部验证|条件曾被观测为true；未知条件继续等，超时退出|
 |place_entity|reference, face|placeEntity|返回新实体观测；可放船/矿车，未包含驾驶|
 |activate_entity_at|entityId, offset|activateEntityAt|发出主手定点交互；offset先转成世界坐标|
-|craft_output|item, outputCount, table?|recipesFor / craft|新增产量至少达到outputCount，按配方次数向上取整|
+|craft_output|item, outputCount, table?, recipeRef?|指定配方或 recipesFor / craft / 背包对账|向上取整到完整批次，验收该批次产量|
 |container_inspect|position|openContainer / close|读取当前合法窗口的容器区，随后关窗|
 |inventory_move|source, destinationSlot|moveSlotItem|整堆移到另一个空背包槽；校验游标与目标指纹|
 |furnace_inspect|position|openFurnace|读取输入、燃料、输出与当前进度；null表示尚未知|
@@ -98,13 +107,22 @@
 
 |type|参数|结果|
 |---|---|---|
-|snapshot|radius=16，最大32|会话ID、客户端刻、位置/速度、血饥饿/氧气/经验、装备、背包指纹、附近实体和原始组件|
-|inspect_block|position|已加载方块及properties；未加载或超出32格为unknown|
-|find_blocks|names, radius=16, limit=32|在已加载感知区域查找；不意味着全世界不存在其他目标|
+|register_position|position（整数坐标）|32格内已加载位置的短期引用，用于导航/看向；不证明可达，不可作为方块操作目标|
+|observe_targets|names/blockNames/entityNames/itemNames/entityKinds 均默认[]；radius=8, limit=8, placements=false, entities=false|names/blockNames 只查方块；itemNames 查掉落物内容；entityKinds 为 player/item/mob/other。实体过滤自动开启实体观测；返回 targets[].ref，执行前复查|
+|observe_inventory|offset=0, limit=8|分页背包摘要、物品 itemRef 与空槽 destinationRef；执行时检查物品/空槽是否改变|
+|operation_schema|types（1–4个）|查询指定模型操作的精确 Schema；只读，不产生动作|
+|snapshot|radius=16，最大32|会话ID、客户端刻、位置/速度、血饥饿/氧气/经验、装备、背包指纹；最近最多64个实体，含 ref/entityKind/droppedItem；entitiesTruncated 标示截断|
+|inspect_block|position|已加载方块及properties、ref；未加载或超出32格为unknown，不提供可操作引用|
+|find_blocks|names, radius=16, limit=32|在已加载感知区域查找，blocks[] 带可执行 ref；不意味着全世界不存在其他目标|
 |recipes|item, table?|当前材料可用的配方、每次产量和消耗；不自动补齐资源|
+|recipe_lookup|item, offset=0, limit=8|理论合成配方、来源/版本、稳定引用和分页；不检查材料或设施|
+|recipe_evaluate|item, recipeRef, count, facilities=[]|指定配方整批材料与设施假设的可行性；不证明设施存在|
+|requirements_expand|goals, mode=total, facilities=[], maxDepth=8, maxNodes=128, maxAlternatives=6, recipeRefs?|递归材料依赖、批次/余量/缺料与搜索边界；只返回候选，不执行|
 |verify|condition|value为true / false / "unknown"，附客户端证据|
 
 condition支持inventory_at_least、block_is（可比较properties）、dimension_is、entity_near、health_at_least。实体消失不等于死亡，未加载方块不等于空气；未解码property为unknown。公开感知半径不是射线遮挡过滤；若评测进一步限制视线，需在适配层增加过滤。
+
+知识查询、recipeRef 的来源/版本校验、整批材料预检、制作对账与失败部分效果见 [配方知识与精确制作](recipe-knowledge.md)。旧 recipes 语义不变；本地理论规则不代表当前服务器自定义规则。上述新增能力仅通过模拟测试，尚未实机验收。
 
 `dimension_is.dimension`使用Mineflayer当前game.dimension原值，例如overworld/the_nether；物品名称也使用短名。这与CoCraftBench对外minecraft命名空间格式不同。
 

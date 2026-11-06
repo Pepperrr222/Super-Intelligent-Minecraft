@@ -1,4 +1,13 @@
 import { ActionError } from './executor.js';
+import { DEFAULT_SKILLS } from './builtin-skills.js';
+import {
+  SkillRunner,
+  createSkillContext,
+  skillStatusToController,
+  type SkillEvidence,
+  type SkillRegistry,
+  type SkillResult,
+} from './skill-runtime.js';
 import type { ActionResult, Condition } from './schema.js';
 import type {
   ActionPort,
@@ -44,8 +53,14 @@ function bump(current: EvidenceLevel | undefined, next: EvidenceLevel | undefine
  */
 export class ActionController implements ControllerPort {
   private active?: { command: ControllerCommand; abort: AbortController };
+  private readonly runner: SkillRunner;
 
-  constructor(private readonly actions: ActionPort) {}
+  constructor(
+    private readonly actions: ActionPort,
+    readonly skills: SkillRegistry = DEFAULT_SKILLS,
+  ) {
+    this.runner = new SkillRunner(skills);
+  }
 
   get busy(): boolean {
     return Boolean(this.active) || this.actions.busy;
@@ -60,7 +75,7 @@ export class ActionController implements ControllerPort {
     command: ControllerCommand,
     status: ControllerStatus,
     partialEffects: ActionResult[],
-    extra: Pick<ControllerResult, 'evidence' | 'data' | 'error'> = {},
+    extra: Pick<ControllerResult, 'evidence' | 'data' | 'error' | 'progress'> = {},
   ): ControllerResult {
     return {
       taskId: command.taskId,
@@ -114,6 +129,48 @@ export class ActionController implements ControllerPort {
         return this.result(command, 'blocked', partialEffects, {
           error: { code: pre.code, message: pre.message },
           data: pre.observed,
+        });
+      }
+
+      if (command.step.skill) {
+        const context = createSkillContext(this.actions, {
+          signal: abort.signal,
+          ...(command.deadline !== undefined ? { deadline: command.deadline } : {}),
+        });
+        const skillResult = await this.runner.run(
+          command.step.skill.id,
+          command.step.skill.params,
+          context,
+        );
+        const status = skillStatusToController(skillResult);
+        const actionResults = skillResult.evidence
+          .filter((item): item is Extract<SkillEvidence, { kind: 'action' }> => item.kind === 'action')
+          .map(item => item.action);
+        const skillData = {
+          ...(skillResult.output && typeof skillResult.output === 'object'
+            ? skillResult.output as Record<string, unknown>
+            : {}),
+          output: skillResult.output,
+          progress: skillResult.progress,
+          partialEffects: skillResult.partialEffects,
+        };
+        if (status === 'ok') {
+          const post = this.checkConditions(command.step.postconditions, 'post');
+          if (post.value !== true) {
+            return this.result(command, post.value === 'unknown' ? 'blocked' : 'partial', actionResults, {
+              evidence: this.skillEvidence(skillResult),
+              data: skillData,
+              progress: skillResult.progress,
+              error: { code: post.code, message: post.message },
+            });
+          }
+        }
+        const evidence = status === 'ok' ? 'step_verified' : this.skillEvidence(skillResult);
+        return this.result(command, status, actionResults, {
+          ...(evidence ? { evidence } : {}),
+          data: skillData,
+          progress: skillResult.progress,
+          ...(skillResult.error ? { error: skillResult.error } : {}),
         });
       }
 
@@ -231,6 +288,15 @@ export class ActionController implements ControllerPort {
       };
     }
     return { value: true };
+  }
+
+  private skillEvidence(result: SkillResult): EvidenceLevel | undefined {
+    let evidence: EvidenceLevel | undefined;
+    for (const item of result.evidence) {
+      if (item.kind === 'action') evidence = bump(evidence, evidenceOf(item.action));
+      else evidence = bump(evidence, 'client_observed');
+    }
+    return evidence;
   }
 
   private mapFailure(

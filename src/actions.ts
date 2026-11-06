@@ -3,9 +3,13 @@ import pathfinderPackage from 'mineflayer-pathfinder';
 import { Vec3 } from 'vec3';
 import { ActionError, ActionExecutor, type Context, type ExecuteOptions } from './executor.js';
 import type { Action } from './schema.js';
-import { Observations } from './observation.js';
+import { Observations, itemDetails } from './observation.js';
 import { runExtension, withWindow } from './extensions.js';
 import { entityLookTarget } from './entity-look.js';
+import { RecipeKnowledgeError, specialMaterial } from './recipes.js';
+import { craftWithEvidence } from './crafting.js';
+import { bindOperation, operationResult } from './operation-gateway.js';
+import { operationCatalog } from './basic-operations.js';
 
 const { pathfinder, Movements, goals } = pathfinderPackage;
 const vector = (p: {x:number;y:number;z:number}) => new Vec3(p.x, p.y, p.z);
@@ -18,19 +22,20 @@ export class MinecraftActions {
   readonly observations: Observations;
   private alive: boolean;
   private disposed = false;
-  private onSpawn = () => { this.alive = true; this.configureMovement(); };
-  private onUnavailable = () => { this.alive = false; this.stop('机器人死亡或连接结束'); };
+  private onSpawn = () => { this.observations.clearReferences(); this.alive = true; this.configureMovement(); };
+  private onUnavailable = () => { this.observations.clearReferences(); this.alive = false; this.stop('机器人死亡或连接结束'); };
   private dimension?: string;
   private onGame = () => {
     const next = this.bot.game?.dimension;
+    if (this.dimension && next && next !== this.dimension) this.observations.clearReferences();
     if (this.dimension && next && next!==this.dimension && !this.executor.waitingForDimension) this.stop('维度已改变，请重新观测目标');
     this.dimension = next;
   };
 
-  constructor(private bot: Bot) {
+  constructor(private bot: Bot, knowledgeScope = 'local') {
     if (!bot.pathfinder) bot.loadPlugin(pathfinder);
     this.alive = Boolean(bot.entity && bot.health > 0);
-    this.observations = new Observations(bot);
+    this.observations = new Observations(bot, 32, knowledgeScope);
     this.dimension = bot.game?.dimension;
     this.executor = new ActionExecutor((a, c) => this.run(a, c), () => this.alive && !this.disposed);
     bot.on('spawn', this.onSpawn);
@@ -53,7 +58,8 @@ export class MinecraftActions {
   query(input: unknown) {
     if (!this.alive || this.disposed) return { status:'not_ready' };
     try { return this.observations.query(input); }
-    catch (error) { return { status:'failed', error:error instanceof Error ? error.message : String(error) }; }
+    catch (error) { return { status:'failed', error:error instanceof RecipeKnowledgeError || error instanceof ActionError
+      ? `${error.code}: ${error.message}` : error instanceof Error ? error.message : String(error) }; }
   }
   dispose() {
     this.stop('动作控制器已释放'); this.disposed = true;
@@ -94,6 +100,25 @@ export class MinecraftActions {
     const b = this.bot;
     c.check();
     switch (a.type) {
+      case 'operate': {
+        const op = a.operation;
+        const card = operationCatalog(b.version).find(card => card.type === op.type)!;
+        requireCondition(card.available, 'UNSUPPORTED_VERSION', card.reason ?? '此操作当前不可用');
+        const action = bindOperation(op, this.observations, b);
+        c.check();
+        const raw = await this.run(action, c); c.check();
+        if (op.type === 'place') {
+          const placed = (raw as { block?: string }).block;
+          requireCondition(placed === op.item, 'PLACEMENT_UNCONFIRMED', '位置发生变化但未观测到指定方块');
+        }
+        if (op.type === 'equip' || op.type === 'unequip') {
+          const slot = { hand: null, 'off-hand': 45, head: 5, torso: 6, legs: 7, feet: 8 }[op.destination];
+          const current = slot === null ? b.heldItem : b.inventory.slots[slot];
+          requireCondition(op.type === 'equip' ? current?.name === op.item : !current, 'EQUIPMENT_UNCONFIRMED', '没有观测到预期装备变化');
+        }
+        return { ...operationResult(op, raw, this.observations),
+          ...(op.type === 'equip' || op.type === 'unequip' ? { evidence: 'client_equipment' } : {}) };
+      }
       case 'wait': await c.sleep(a.durationMs); return { waitedMs:a.durationMs };
       case 'move': {
         requireCondition(!(a.controls.includes('forward') && a.controls.includes('back')) && !(a.controls.includes('left') && a.controls.includes('right')), 'CONFLICTING_CONTROLS', '不能同时向相反方向移动');
@@ -117,7 +142,19 @@ export class MinecraftActions {
         const goal = new goals.GoalNear(a.position.x,a.position.y,a.position.z,a.range);
         c.cleanup(() => { b.pathfinder.setGoal(null); b.clearControlStates(); });
         await b.pathfinder.goto(goal); c.check();
-        requireCondition(b.entity.position.floored().distanceTo(vector(a.position)) <= a.range, 'GOAL_NOT_REACHED', '导航结束但当前位置未满足目标');
+        // Mirror mineflayer-pathfinder's goal_reached check. It tests the
+        // floored node and the node one block above, because standing on a
+        // non-full block (snow layer, slab) makes the floored feet position
+        // farther from the goal than the pathfinder considered arrived.
+        const node = b.entity.position.floored();
+        const destination = vector({
+          x: Math.floor(a.position.x),
+          y: Math.floor(a.position.y),
+          z: Math.floor(a.position.z),
+        });
+        const arrived = node.distanceTo(destination) <= a.range
+          || node.offset(0, 1, 0).distanceTo(destination) <= a.range;
+        requireCondition(arrived, 'GOAL_NOT_REACHED', '导航结束但当前位置未满足目标');
         return { evidence:'position_observed', position:b.entity.position.clone() };
       }
       case 'follow': {
@@ -177,15 +214,9 @@ export class MinecraftActions {
         b.attack(entity); return { evidence:'attack_sent', damageConfirmed:false };
       }
       case 'craft': {
-        const type = this.itemType(a.item), table = a.table ? this.block(a.table) : undefined;
+        const table = a.table ? this.block(a.table) : undefined;
         if (table) requireCondition(table.name==='crafting_table','NOT_CRAFTING_TABLE','目标不是工作台');
-        const recipe = b.recipesFor(type,null,1,table ?? null)[0];
-        if (!recipe) throw new ActionError('NO_RECIPE','材料不足或没有可用配方/工作台');
-        const before = this.amount(a.item);
-        await b.craft(recipe,a.repetitions,table); c.check();
-        const gained = this.amount(a.item)-before;
-        requireCondition(gained >= recipe.result.count*a.repetitions,'INVENTORY_MISMATCH','合成后的背包增量未达到预期');
-        return { evidence:'inventory_delta', gained, repetitions:a.repetitions };
+        return craftWithEvidence(b, c, a, table);
       }
       case 'toss': {
         const before = this.amount(a.item);
@@ -198,7 +229,15 @@ export class MinecraftActions {
       case 'container_transfer': {
         const type = this.itemType(a.item), block = this.block(a.position), before = this.amount(a.item);
         return withWindow(b,c,()=>b.openContainer(block),async window=> {
-          await window[a.direction](type,null,a.count); c.check();
+          this.observations.containers.capture(a.position,window,itemDetails);
+          c.check();
+          const candidates = a.direction==='withdraw' ? window.slots.slice(0,window.inventoryStart)
+            : window.slots.slice(window.inventoryStart,window.inventoryEnd);
+          requireCondition(!candidates.some(i=>i?.name===a.item && specialMaterial(i)),
+            'SPECIAL_MATERIAL_SELECTION_REQUIRED','存在同名特殊物品，按名称转移不能保证保留它，请先明确分开存放');
+          try { await window[a.direction](type,null,a.count); c.check(); }
+          catch (error) { this.observations.containers.invalidate(a.position); throw error; }
+          this.observations.containers.capture(a.position,window,itemDetails);
           const delta = this.amount(a.item)-before, expected = a.direction==='deposit' ? -a.count : a.count;
           requireCondition(delta===expected,'INVENTORY_MISMATCH','转移后的背包变化不符合预期');
           return { evidence:'inventory_delta', delta };

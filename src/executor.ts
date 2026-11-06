@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { actionSchema, type Action, type ActionResult } from './schema.js';
+import { RecipeKnowledgeError } from './recipes.js';
 
 export class ActionError extends Error {
-  constructor(public code: string, message: string) { super(message); }
+  constructor(public code: string, message: string, public data?: unknown) { super(message); }
 }
 export interface Context {
   signal: AbortSignal;
@@ -18,7 +19,11 @@ export class ActionExecutor {
   private lease?: Lease;
   constructor(private run: (action: Action, context: Context) => Promise<unknown>, private ready = () => true) {}
   get busy() { return Boolean(this.lease); }
-  get waitingForDimension() { return this.lease?.action.type==='wait_until' && this.lease.action.condition.kind==='dimension_is'; }
+  get waitingForDimension() {
+    const action = this.lease?.action;
+    const operation = action?.type === 'operate' ? action.operation : action;
+    return operation?.type === 'wait_until' && operation.condition.kind === 'dimension_is';
+  }
   stop(reason = '用户停止') { this.lease?.abort.abort(new ActionError('CANCELLED', reason)); }
 
   async execute(input: unknown, options: ExecuteOptions = {}): Promise<ActionResult> {
@@ -30,7 +35,8 @@ export class ActionExecutor {
     if (!parsed.success) return result('invalid', undefined, { code: 'INVALID_ARGUMENT', message: parsed.error.message });
     const action = parsed.data;
     type = action.type;
-    const timeout = options.timeoutMs ?? ('durationMs' in action ? action.durationMs + 5000 : 30_000);
+    const timed = action.type === 'operate' ? action.operation : action;
+    const timeout = options.timeoutMs ?? ('durationMs' in timed ? timed.durationMs + 5000 : 30_000);
     if (!Number.isInteger(timeout) || timeout < 1 || timeout > 300_000)
       return result('invalid', undefined, { code: 'INVALID_TIMEOUT', message: 'timeoutMs 必须在 1–300000 范围内' });
     if (options.signal?.aborted) return result('cancelled', undefined, { code: 'CANCELLED', message: '请求已经取消' });
@@ -73,9 +79,10 @@ export class ActionExecutor {
       return result('succeeded', data);
     } catch (error) {
       const cause = signal.aborted ? signal.reason : error;
-      const code = cause instanceof ActionError ? cause.code : 'EXECUTION_FAILED';
+      const code = cause instanceof ActionError || cause instanceof RecipeKnowledgeError ? cause.code : 'EXECUTION_FAILED';
       const message = cause instanceof Error ? cause.message : String(cause);
-      return result(signal.aborted ? (code === 'TIMEOUT' ? 'timed_out' : 'cancelled') : 'failed', undefined, { code, message });
+      return result(signal.aborted ? (code === 'TIMEOUT' ? 'timed_out' : 'cancelled') : 'failed',
+        cause instanceof ActionError ? cause.data : undefined, { code, message });
     } finally {
       clearTimeout(timer);
       signal.removeEventListener('abort', onAbort);

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { conditionSchema } from './schema.js';
-import { SkillCatalog, type SkillContext } from './skills.js';
+import { SkillCatalog, type SkillCompileContext } from './skills.js';
 import type { Task, TaskStep } from './task.js';
 
 const planSchema = z.object({
@@ -14,7 +14,7 @@ const planSchema = z.object({
 export type Plan = z.infer<typeof planSchema>;
 export class PlanValidator {
   constructor(private readonly catalog = new SkillCatalog()) {}
-  compile(value: unknown, context: SkillContext, goal: string): { task: Task; confirmation?: string } | { error: string } {
+  compile(value: unknown, context: SkillCompileContext, goal: string): { task: Task } | { error: string } {
     const parsed = planSchema.safeParse(value);
     if (!parsed.success) return { error: '计划格式或预算无效。' };
     const plan = parsed.data;
@@ -33,24 +33,44 @@ export class PlanValidator {
     const order: string[] = [];
     while (queue.length) { const id = queue.shift()!; order.push(id); for (const next of outgoing.get(id)!) { incoming.set(next, incoming.get(next)! - 1); if (incoming.get(next) === 0) queue.push(next); } }
     if (order.length !== nodes.size) return { error: '计划依赖存在环。' };
-    const steps: TaskStep[] = []; let confirm = plan.nodes.length > 1; let durationMs = 0;
+    const steps: TaskStep[] = []; let durationMs = 0;
+    const goalNumbers = goal.match(/-?\d+/gu)?.map(Number) ?? [];
+    const specifiedInGoal = (target?: { x?: unknown; y?: unknown; z?: unknown }) =>
+      goalNumbers.some((_, i) => goalNumbers[i] === target?.x && goalNumbers[i + 1] === target?.y && goalNumbers[i + 2] === target?.z);
     for (const id of order) {
       const node = nodes.get(id)!; const skill = this.catalog.get(node.skill);
       if (!skill || node.idempotent && !skill.idempotent) return { error: '计划引用未知技能或无效的幂等声明。' };
       if (node.skill === 'navigate_to') {
         const p = node.params as { x?: unknown; y?: unknown; z?: unknown };
-        const coordinates = goal.match(/-?\d+/gu)?.map(Number) ?? [];
-        const specified = coordinates.some((_, i) => coordinates[i] === p?.x && coordinates[i + 1] === p?.y && coordinates[i + 2] === p?.z);
-        const observed = context.snapshot?.entities?.some(e => e.position && Math.floor(e.position.x) === p?.x && Math.floor(e.position.y) === p?.y && Math.floor(e.position.z) === p?.z);
-        if (!specified && !observed) return { error: '计划包含没有依据的坐标。' };
+        const observed = context.snapshot?.entities?.some(e => e.position && Math.floor(e.position.x) === p.x && Math.floor(e.position.y) === p.y && Math.floor(e.position.z) === p.z);
+        if (!specifiedInGoal(p) && !observed) return { error: '计划包含没有依据的坐标。' };
+      }
+      if (node.skill === 'store_items') {
+        const p = node.params as { container?: { x?: unknown; y?: unknown; z?: unknown } };
+        if (!specifiedInGoal(p.container)) return { error: '计划中的箱子坐标没有依据。' };
+      }
+      if (node.skill === 'craft_item') {
+        const p = node.params as { table?: { x?: unknown; y?: unknown; z?: unknown } };
+        if (p.table && !specifiedInGoal(p.table)) return { error: '计划中的工作台坐标没有依据。' };
+      }
+      if (node.skill === 'deliver_to_player') {
+        const p = node.params as { player?: unknown };
+        if (typeof p.player === 'string'
+          && p.player.toLowerCase() !== context.player.toLowerCase()
+          && !goal.toLowerCase().includes(p.player.toLowerCase())) {
+          return { error: '计划中的交付玩家没有依据。' };
+        }
       }
       const result = this.catalog.compile(node.skill, node.params, context);
+      if (result.kind === 'dynamic') {
+        steps.push({ id, actions: [], skill: result.skill, preconditions: [...skill.preconditions,...node.preconditions], postconditions: [...skill.postconditions,...node.postconditions], idempotent: skill.idempotent && node.idempotent });
+        continue;
+      }
       if (result.kind !== 'actions') return { error: result.kind === 'clarify' ? result.question : '查询技能不能作为计划动作。' };
       durationMs += result.actions.reduce((sum, action) => sum + ('durationMs' in action ? action.durationMs : 0), 0);
-      confirm ||= skill.risk !== 'safe';
       steps.push({ id, actions: result.actions, preconditions: [...skill.preconditions, ...node.preconditions], postconditions: [...skill.postconditions, ...node.postconditions], idempotent: skill.idempotent && node.idempotent });
     }
     if (durationMs > plan.budget.maxSeconds * 1000) return { error: '计划超过时间预算。' };
-    return { task: { id: `plan-${randomUUID()}`, goal, priority: 10, deadline: Date.now() + plan.budget.maxSeconds * 1000, steps, metadata: { planId: plan.id, goalId: plan.goalId, revision: plan.revision, assumptions: plan.assumptions } }, ...(confirm ? { confirmation: '这个计划包含多步或需确认的动作，要开始吗？' } : {}) };
+    return { task: { id: `plan-${randomUUID()}`, goal, priority: 10, deadline: Date.now() + plan.budget.maxSeconds * 1000, steps, metadata: { planId: plan.id, goalId: plan.goalId, revision: plan.revision, assumptions: plan.assumptions } } };
   }
 }

@@ -6,6 +6,187 @@
       "properties": {
         "type": {
           "type": "string",
+          "const": "register_position"
+        },
+        "position": {
+          "type": "object",
+          "properties": {
+            "x": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "y": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "z": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "x",
+            "y",
+            "z"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "type",
+        "position"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "observe_targets"
+        },
+        "names": {
+          "default": [],
+          "description": "Legacy block-name filter only. For dropped items use itemNames.",
+          "maxItems": 16,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        },
+        "blockNames": {
+          "default": [],
+          "description": "Block names, e.g. spruce_log. Does not filter entities.",
+          "maxItems": 16,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        },
+        "entityNames": {
+          "default": [],
+          "description": "Entity names or player names, e.g. zombie. Implies entities=true.",
+          "maxItems": 16,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        },
+        "itemNames": {
+          "default": [],
+          "description": "Dropped item contents, e.g. iron_ingot. Implies entityKinds=[item] and entities=true.",
+          "maxItems": 16,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        },
+        "entityKinds": {
+          "default": [],
+          "description": "Filter entities by kind. Use [item] for all dropped items, including unknown contents.",
+          "maxItems": 4,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "player",
+              "item",
+              "mob",
+              "other"
+            ]
+          }
+        },
+        "radius": {
+          "default": 8,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16
+        },
+        "limit": {
+          "default": 8,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16
+        },
+        "placements": {
+          "default": false,
+          "type": "boolean"
+        },
+        "entities": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "observe_inventory"
+        },
+        "offset": {
+          "default": 0,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 36
+        },
+        "limit": {
+          "default": 8,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "operation_schema"
+        },
+        "types": {
+          "minItems": 1,
+          "maxItems": 4,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        }
+      },
+      "required": [
+        "type",
+        "types"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
           "const": "snapshot"
         },
         "radius": {
@@ -16,8 +197,7 @@
         }
       },
       "required": [
-        "type",
-        "radius"
+        "type"
       ],
       "additionalProperties": false
     },
@@ -93,9 +273,7 @@
       },
       "required": [
         "type",
-        "names",
-        "radius",
-        "limit"
+        "names"
       ],
       "additionalProperties": false
     },
@@ -306,6 +484,273 @@
       "required": [
         "type",
         "condition"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "goals": {
+          "minItems": 1,
+          "maxItems": 16,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "item": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              "count": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 2304
+              }
+            },
+            "required": [
+              "item",
+              "count"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "mode": {
+          "default": "total",
+          "type": "string",
+          "enum": [
+            "total",
+            "additional"
+          ]
+        },
+        "facilities": {
+          "default": [],
+          "maxItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "const": "crafting_table"
+          }
+        },
+        "maxDepth": {
+          "default": 8,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16
+        },
+        "maxNodes": {
+          "default": 128,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 512
+        },
+        "maxAlternatives": {
+          "default": 6,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32
+        },
+        "type": {
+          "type": "string",
+          "const": "crafting_options"
+        },
+        "includeDependencies": {
+          "default": true,
+          "type": "boolean"
+        },
+        "expandMembers": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "goals",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "container_memory"
+        },
+        "items": {
+          "default": [],
+          "maxItems": 32,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        },
+        "limit": {
+          "default": 16,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "recipe_lookup"
+        },
+        "item": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "offset": {
+          "default": 0,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "limit": {
+          "default": 8,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32
+        }
+      },
+      "required": [
+        "type",
+        "item"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "recipe_evaluate"
+        },
+        "item": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "recipeRef": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2304
+        },
+        "facilities": {
+          "default": [],
+          "maxItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "const": "crafting_table"
+          }
+        }
+      },
+      "required": [
+        "type",
+        "item",
+        "recipeRef",
+        "count"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "goals": {
+          "minItems": 1,
+          "maxItems": 16,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "item": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              "count": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 2304
+              }
+            },
+            "required": [
+              "item",
+              "count"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "mode": {
+          "default": "total",
+          "type": "string",
+          "enum": [
+            "total",
+            "additional"
+          ]
+        },
+        "facilities": {
+          "default": [],
+          "maxItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "const": "crafting_table"
+          }
+        },
+        "maxDepth": {
+          "default": 8,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16
+        },
+        "maxNodes": {
+          "default": 128,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 512
+        },
+        "maxAlternatives": {
+          "default": 6,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32
+        },
+        "recipeRefs": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "type": {
+          "type": "string",
+          "const": "requirements_expand"
+        }
+      },
+      "required": [
+        "goals",
+        "type"
       ],
       "additionalProperties": false
     }

@@ -4,6 +4,7 @@ import { ActionError, type Context } from './executor.js';
 import type { Action } from './schema.js';
 import { Observations, itemDetails, itemFingerprint, itemIdentity, fingerprint, plain, type Item } from './observation.js';
 import { until, physicsTicks } from './control.js';
+import { craftWithEvidence } from './crafting.js';
 
 type Host = { bot: Bot; observations: Observations;
   block(p: {x:number;y:number;z:number}): NonNullable<ReturnType<Bot['blockAt']>>;
@@ -90,17 +91,13 @@ export async function runExtension(a: Action, c: Context, h: Host): Promise<unkn
     case 'craft_output': {
       const table = a.table ? h.block(a.table) : null;
       if (table) need(table.name==='crafting_table','NOT_CRAFTING_TABLE','目标不是工作台');
-      const recipe = b.recipesFor(typeOf(b,a.item),null,1,table)[0];
-      need(recipe,'NO_RECIPE','没有材料足够的配方');
-      const repetitions = Math.ceil(a.outputCount/recipe.result.count);
-      const before = amount(b,a.item);
-      await b.craft(recipe,repetitions,table ?? undefined); c.check();
-      const gained = amount(b,a.item)-before;
-      need(gained>=a.outputCount,'INVENTORY_MISMATCH','产物增量不足');
-      return { evidence:'inventory_delta', requested:a.outputCount, gained, repetitions };
+      return craftWithEvidence(b, c, a, table ?? undefined);
     }
-    case 'container_inspect': return withWindow(b,c,()=>b.openContainer(h.block(a.position)),async w=>
-      ({ evidence:'client_window', windowType:w.type, items:w.slots.slice(0,w.inventoryStart).map((i,slot)=>({slot,item:itemDetails(i)})) }));
+    case 'container_inspect': return withWindow(b,c,()=>b.openContainer(h.block(a.position)),async w=> {
+      h.observations.containers.capture(a.position,w,itemDetails);
+      return { evidence:'client_window', windowType:w.type, position:a.position,
+        items:w.slots.slice(0,w.inventoryStart).map((i,slot)=>({slot,item:itemDetails(i)})) };
+    });
     case 'inventory_move': {
       need(!b.currentWindow,'WINDOW_BUSY','背包整理时不能有已打开窗口');
       need(!b.inventory.selectedItem,'CURSOR_OCCUPIED','鼠标游标持有物品');

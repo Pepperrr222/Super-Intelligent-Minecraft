@@ -6,10 +6,10 @@ import { TaskScheduler } from '../src/scheduler.js';
 import { CompanionBrain } from '../src/brain.js';
 import {
   InteractionService,
-  RuleBasedIntentClassifier,
   type ChatTransport,
   type PlayerMessage,
 } from '../src/interaction.js';
+import { ScriptedClassifier } from './scripted-classifier.js';
 import type { Action } from '../src/schema.js';
 import type { ActionPort, QueryOutcome } from '../src/task.js';
 
@@ -60,7 +60,7 @@ test('player command flows through interaction, brain, scheduler, controller and
   const transport = new CaptureTransport();
   const interaction = new InteractionService(
     transport,
-    new RuleBasedIntentClassifier(),
+    new ScriptedClassifier({ '过来': { kind: 'skill', skill: 'come_to_player', params: {} } }),
     brain,
     scheduler,
     controller,
@@ -113,7 +113,10 @@ test('inventory query uses read-only observation and never creates a task', asyn
   const transport = new CaptureTransport();
   const interaction = new InteractionService(
     transport,
-    new RuleBasedIntentClassifier(),
+    new ScriptedClassifier({
+      '背包里有什么': { kind: 'query', scope: 'inventory', question: '背包里有什么' },
+      '建个房子': { kind: 'plan', goal: '建个房子' },
+    }),
     new CompanionBrain({ query }),
     scheduler,
     controller,
@@ -143,7 +146,10 @@ test('unsupported complex task returns clarify instead of inventing a plan', asy
   const transport = new CaptureTransport();
   const interaction = new InteractionService(
     transport,
-    new RuleBasedIntentClassifier(),
+    new ScriptedClassifier({
+      '背包里有什么': { kind: 'query', scope: 'inventory', question: '背包里有什么' },
+      '建个房子': { kind: 'plan', goal: '建个房子' },
+    }),
     new CompanionBrain({ query }),
     scheduler,
     controller,

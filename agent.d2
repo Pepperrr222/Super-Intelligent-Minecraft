@@ -1,164 +1,131 @@
-direction: right
+# SIM 当前结构 · 2026-11-05 · sim-v2-9
+# d2 agent.d2 dist/architecture/agent.svg
+# d2 --target layers.decision agent.d2 dist/architecture/decision.svg
+direction: down
 
-# ── 外部 ───────────────────────────────────────────────
-player: |md
-  **玩家**
-  与 agent 互动方式：聊天、（待定）
-|
+title: "SIM 当前运行结构\nsim-v2-9 · 单模型持续决策" {shape: text}
+player: "玩家 / Minecraft 聊天"
+transport: "MineflayerChatTransport\n接收消息 / whisper 或 chat 回复"
+interaction: "AgentLoop · agent-loop.ts\n权限 / 限流 / 去重 / 精确本地控制\n目标、原话、修订、预算、证据与持续执行" {style.fill: "#e8f1ff"}
+brain: "AgentBrain · 唯一 decision 模型\n理解 / 查询 / 选动作 / 纠错 / 完成判断\n无主控与执行模型交接" {style.fill: "#e8f1ff"}
+stage: "可选 StagePlan\n有界循环、分支、结果绑定\n正常节点之间无模型调用" {style.fill: "#e7f5ec"}
+scheduler: "TaskScheduler\n短批次或阶段节点 → 原生动作步骤" {style.fill: "#e7f5ec"}
+controller: "ActionController → ActionExecutor\n单写入者、取消、原生租约和执行证据" {style.fill: "#e7f5ec"}
+actions: "MinecraftActions → Mineflayer\n45 动作 = 44 原生 + operate 网关" {style.fill: "#e7f5ec"}
+data: "Observations · 14 种只读查询\n统一目标 ref、背包、配方、掉落物过滤\n当前客户端已加载范围" {style.fill: "#f1eafe"}
+store: "FileAgentStore / MemoryAgentStore\n持久目标、事件、未确认操作\n恢复先观察对账，不盲目重放" {style.fill: "#f1eafe"}
+finish: "finish → 程序核对要求覆盖 / 证据引用\n完整任务通过才标记完成\n无独立验收模型"
+game: "Minecraft Java 服务器\n项目目标 1.21.1；本版尚未实机复测"
+diagnostics: "DiagnosticBus + 本机只读诊断台\n模型、工具、目标与错误事件 / JSONL"
+boundary: "当前边界\n模型仍可能误解目标或证据\n无通用长期经验学习 / 多目标并行" {style.fill: "#fff0d9"}
+player <-> transport: "消息 / 回复"
+transport <-> interaction
+interaction <-> brain: "player_message / goal_step → 结构化决定"
+interaction -> stage: "plan（可选）"
+interaction -> scheduler: "propose / 本地控制"
+stage -> scheduler: "逐节点写入"
+scheduler -> controller
+controller -> actions
+actions <-> game
+interaction -> data: "query / 新快照"
+stage -> data: "阶段查询"
+data -> interaction: "当前证据、ref、结果路径"
+scheduler -> interaction: "实际结果 / 失败 → 同一模型继续"
+interaction <-> store
+interaction -> finish: "finish"
+finish -> interaction: "完成 / 剩余要求"
+interaction -> diagnostics: "只读旁路"
+brain -> boundary: "语义准确率仍需实测" {style.stroke-dash: 4}
 
-world: 世界
-
-# ── 交互 ───────────────────────────────────────────────
-interactor: 交互模块 {
-  gateway: 聊天网关/独立租约
-  guard: 权限/限流/去重
-  intent: 意图识别
-  session: 会话/指代/确认
-  router: 路由
-  responder: 回复/播报
-
-  gateway -> guard: "消息"
-  guard -> router: "stop 快路径"
-  guard -> intent: "普通消息"
-  intent -> session: "指代/澄清"
-  session -> router
-  router -> brain: "任务/查询/聊天"
-  router -> scheduler.intake: "原子指令"
-  router -> scheduler.control: "暂停/恢复/取消"
-  router -> controller.stop: "stop" {
-    style.stroke: "#c0392b"
-    style.stroke-dash: 4
+layers: {
+  decision: {
+    direction: down
+    title: "单模型决策循环 · sim-v2-9" {shape: text}
+    input: "玩家消息"
+    local: "精确 stop / cancel / pause / resume\n本地控制；取消在途模型与未开始动作"
+    model: "AgentBrain.infer(decision)\n同一提示词 / Schema\nplayer_message 或 goal_step" {style.fill: "#e8f1ff"}
+    context: "当前目标、原话、要求、近期观测\nlastTool / lastFailure / queryContracts\n证据索引与可用操作目录" {style.fill: "#f1eafe"}
+    goal: "新建 / 修订持续目标"
+    reply: "回复 / 必要澄清 / 等待"
+    query: "query / read_evidence\n执行后自动回到同一模型"
+    write: "propose：1–4个已绑定动作\nplan：可选有界重复阶段"
+    program: "Schema、引用、前置条件、预算\n单一调度与执行器；取消不提前释放原生租约"
+    result: "真实工具结果 / 已发生效果\n阶段错误：节点、缺失路径、可用字段"
+    pending: "待确认副作用\n观察 → reconcile → 允许新写入"
+    finish: "finish：同一模型按要求给出证据\n程序核对引用与覆盖；不增加模型复核"
+    done: "持久完成状态 / 玩家反馈"
+    input -> local: "精确内置控制"
+    input -> model: "其余消息"
+    context -> model
+    model -> goal: "goal"
+    goal -> context
+    model -> reply: "respond / ask / wait / blocked"
+    model -> query
+    query -> result
+    model -> write
+    write -> program
+    program -> result
+    result -> context
+    result -> pending: "存在未确认效果"
+    pending -> context
+    model -> finish
+    finish -> done: "全部满足"
+    finish -> context: "未满足"
   }
-  brain -> responder: "回复"
-  scheduler.results -> responder: "任务状态"
-  controller.reporter -> responder: "stop 回执"
-  responder -> gateway: "发送"
-}
-
-# ── 中枢 ───────────────────────────────────────────────
-# 职责待确认；对外端口：intent.in / task.out
-# 内部展开：规划、记忆、世界模型等
-brain: 中枢 {
-}
-
-# ── 调度 ───────────────────────────────────────────────
-scheduler: 任务调度器 {
-  intake: 任务入口/校验
-  control: 控制/取消
-  task_graph: 任务图/依赖
-  queue: 就绪队列
-  stages: 状态机
-  dispatcher: 派发/抢占
-  results: 结果处理
-  recovery: 重试/补偿/恢复
-  ledger: 任务账本/幂等
-
-  intake -> task_graph: "校验 / 去重"
-  task_graph -> queue: "就绪任务"
-  control -> stages: "暂停 / 恢复 / 取消"
-  control -> dispatcher: "抢占 / 让权"
-  queue -> dispatcher: "候选任务"
-  dispatcher -> stages: "标记运行"
-  results -> stages: "更新结果"
-  results -> queue: "下一步"
-  results -> recovery: "失败 / 中断"
-  recovery -> queue: "重试 / 补偿"
-  recovery -> stages: "恢复进度"
-  results -> ledger: "结果 / 部分效果"
-  stages -> ledger: "持久化"
-  ledger -> stages: "启动对账" {
-    style.stroke-dash: 3
+  execution: {
+    direction: down
+    title: "调度与执行细图 · 每 Bot 唯一写通道" {shape: text}
+    task: "Task / TaskStep · task.ts\n技能或动作数组、前后置条件\n优先级 / 截止时间 / dependsOn / 可选 retry"
+    scheduler: "TaskScheduler\n校验 / 依赖 / 优先级；每次派发一步\nqueued / running / paused / cancelling\ncompleted / failed / cancelled / blocked" {style.fill: "#e7f5ec"}
+    ledger: "MemoryTaskLedger（默认实际装配）\nTaskLedger 是可替换接口\n载入 running / cancelling 有 RECOVERY_REQUIRED 防护\n调度账本为内存；V2 目标事件由 FileAgentStore 持久化并对账" {style.fill: "#f0f0f0"}
+    controller: "ActionController.execute\n单步骤 active / 取消 / 截止时间\n前置检查 → 执行 → 后置检查\n汇总证据、进度、部分效果" {style.fill: "#e7f5ec"}
+    skills: "仅 legacy：SkillRunner + DEFAULT_SKILLS\n7 动态技能：找资源、导航、拾取、采木、制作、存入、交付\nSkillContext：query / execute / check / report\n组合策略在技能内，不直接持有 Bot"
+    actions: "MinecraftActions.execute → ActionExecutor\nSchema / ready / busy；唯一原生动作租约\n超时 / AbortSignal / 清理\n取消可先返回，原生结束前仍占租约" {style.fill: "#e7f5ec"}
+    gateway: "operate · operation-gateway.ts\n44 种模型操作，按版本 / 能力过滤\n目标 / 物品 / 报价引用绑定为原生 Action\n同一租约内 run，不递归 execute 获取租约"
+    native: "MinecraftActions.run / extensions / crafting\n44 原生动作；多步副作用前检查取消\n窗口清理及导航终点 / 放置 / 装备等局部复查\n底层不隐藏规划或自动重试"
+    observations: "Observations：只读 query / verify\n14 种查询；统一引用注册表、本地配方服务\n引用每 Bot 有界、30 秒 TTL，执行前复查\n出生 / 死亡 / 维度切换 / dispose 清空引用" {style.fill: "#f1eafe"}
+    bot: "Mineflayer / pathfinder → 服务器\n默认寻路禁止挖掘与搭柱\n死亡 / 断连触发停止；维度切换有专用等待例外"
+    result: "ControllerResult → 调度状态 → AgentLoop 证据\nstatus / evidence / data / partialEffects / leaseState\nstep_verified 是局部结果，非最终目标验收" {style.fill: "#fff0d9"}
+    task -> scheduler
+    scheduler <-> ledger: "读写内存记录"
+    scheduler -> controller: "ControllerCommand"
+    controller -> skills: "step.skill"
+    controller -> actions: "step.actions 顺序执行"
+    skills -> actions: "经同一 ActionPort.execute"
+    controller -> observations: "经 actions.query 校验条件" {style.stroke-dash: 4}
+    skills -> observations: "经 actions.query 观察" {style.stroke-dash: 4}
+    actions -> gateway: "operate"
+    gateway -> observations: "复查引用" {style.stroke-dash: 4}
+    gateway -> native: "同一租约内调用"
+    actions -> native: "直接原生 Action"
+    native <-> bot: "调用 / 状态"
+    native -> actions: "结果 / 错误 / 客户端证据"
+    controller -> result: "技能结果或动作回执 + 条件检查"
+    result -> scheduler: "更新步骤与任务状态"
+    scheduler -> controller: "cancel / stop → 取消 active 与原生动作" {
+      style.stroke: "#b44233"
+      style.stroke-dash: 4
+    }
+    scheduler -> scheduler: "仅显式 retry + idempotent 按策略重试"
+  }
+  diagnostics: {
+    direction: down
+    title: "诊断细图 · 只读旁路，不参与游戏控制" {shape: text}
+    runtime: "CompanionRuntime + wireDiagnostics\n输入、模型、校验、分发、任务\n步骤、动作、查询、反馈、回复、运行事件"
+    bus: "DiagnosticBus · diagnostics.ts\ntraceId / taskId 关联\n写入前脱敏、深度 / 大小 / 条数限制" {style.fill: "#f1eafe"}
+    memory: "内存事件缓冲\nRuntime 默认不持久化"
+    file: "logs/diagnostics.jsonl（Git 忽略）\nexamples/companion.ts 显式配置文件记录\n诊断历史，不是可恢复任务账本" {shape: cylinder}
+    server: "startDiagnosticServer\n仅监听 127.0.0.1:4318\nGET 页面 / api/events / api/export\nHost / Origin 检查；无游戏写接口"
+    standalone: "examples/diagnostics.ts\n独立诊断台增量跟踪同一日志\n不登录游戏、不请求模型"
+    gui: "gui/diagnostics.html\n按指令查看模型 / 程序 / 执行对照\n实时、回放、导入、导出、阻断筛选"
+    note: "证据边界\n结构通过不代表意图正确\n发送回复不代表玩家已收到\n演示明确标注，不是真实调用\n未采集的旧历史无法还原" {style.fill: "#fff0d9"}
+    runtime -> bus: "旁路采集"
+    bus -> memory
+    bus -> file: "入口启用时追加"
+    memory -> server: "snapshot"
+    file -> standalone: "持久回放 / 增量读取"
+    standalone -> server: "独立进程也可提供只读界面"
+    server -> gui: "HTTP 读取"
+    gui -> note: "区分事实与推断" {style.stroke-dash: 4}
   }
 }
-
-# ── 反射 ───────────────────────────────────────────────
-reflex: 反射
-
-# ── 执行 ───────────────────────────────────────────────
-controller: 控制器 {
-  resolver: 技能/动作解析
-  lease: 单一租约/忙/超时
-  runner: 动作执行
-  verifier: 结果验证/后置条件
-  reporter: 回执/证据/部分效果
-  stop: 急停/取消
-
-  resolver -> lease: "动作计划"
-  resolver -> reporter: "前置不满足" {
-    style.stroke-dash: 3
-  }
-  lease -> runner: "获得租约"
-  lease -> reporter: "busy" {
-    style.stroke-dash: 3
-  }
-  runner -> verifier: "执行结果"
-  verifier -> reporter: "验证 / 证据"
-  verifier -> lease: "原生结束 / 释放" {
-    style.stroke-dash: 3
-  }
-  stop -> lease: "取消，保留租约至清理"
-  stop -> reporter: "急停回执"
-}
-
-# move = 动作接口 / Mineflayer 适配层
-move: 动作接口
-
-# ── 连接 ───────────────────────────────────────────────
-
-# 玩家 ↔ 交互网关（聊天通道不占动作租约）
-player -> interactor.gateway: "聊天 / 指令"
-interactor.gateway -> player: "回复 / 状态"
-
-# 中枢 ↔ 调度器
-brain -> scheduler.intake: "计划 / 任务请求"
-scheduler.results -> brain: "任务状态 / 重规划请求"
-
-# 反射：告警 vs 抢占
-reflex -> brain: "告警"
-reflex -> scheduler.dispatcher: "抢占 / 急停"
-
-# 调度器 ↔ 控制器：命令与回执
-scheduler.dispatcher -> controller.resolver: "技能 / 动作命令"
-controller.reporter -> scheduler.results: "结果 / 部分效果 / 取消"
-
-# 取消路径：交互 stop 后通知调度器；调度器取消时也通知控制器
-controller.stop -> scheduler.control: "取消任务" {
-  style.stroke-dash: 3
-}
-scheduler.control -> controller.stop: "取消当前动作" {
-  style.stroke-dash: 3
-}
-
-# 控制器 → 动作接口
-controller.runner -> move: "原生调用"
-
-# 动作接口 → 控制器：执行回执 / 观测
-move -> controller.verifier: "回执 / 观测 / 错误"
-
-# 控制器前置 / 后置只读查询
-controller.resolver -> move: "前置查询" {
-  style.stroke-dash: 3
-}
-controller.verifier -> move: "后置查询" {
-  style.stroke-dash: 3
-}
-
-# 恢复对账：只读查询，不占动作租约
-scheduler.recovery -> move: "只读对账" {
-  style.stroke-dash: 3
-}
-
-# 动作接口 → 中枢：观测；中枢 → 动作接口：只读查询
-move -> brain: "观测 / 查询结果"
-brain -> move: "只读查询" {
-  style.stroke-dash: 3
-}
-
-# 动作接口 ↔ 世界
-move -> world: "动作"
-world -> move: "观测 / 事件"
-
-# 世界 → 反射
-world -> reflex: "刺激"
-
-# 任务状态 / stop 回执由 interactor 内部转发到 responder

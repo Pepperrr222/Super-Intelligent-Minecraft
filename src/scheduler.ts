@@ -1,3 +1,5 @@
+import { DEFAULT_SKILLS } from './builtin-skills.js';
+import type { SkillRegistry } from './skill-runtime.js';
 import type {
   ControllerPort,
   ControllerResult,
@@ -43,6 +45,7 @@ export class TaskScheduler {
   constructor(
     private readonly controller: ControllerPort,
     private readonly ledger: TaskLedger = new MemoryTaskLedger(),
+    private readonly skills: SkillRegistry = DEFAULT_SKILLS,
   ) {
     for (const record of this.ledger.load()) {
       this.records.set(record.task.id, record);
@@ -276,6 +279,7 @@ export class TaskScheduler {
 
   private apply(record: TaskRecord, result: ControllerResult): void {
     record.lastResult = result;
+    record.stepResults = [...(record.stepResults ?? []), clone(result)].slice(-24);
     if (record.state === 'cancelling') {
       record.state = 'cancelled';
       return;
@@ -338,6 +342,7 @@ export class TaskScheduler {
   private snapshot(record: TaskRecord): TaskSnapshot {
     return {
       id: record.task.id,
+      goal: record.task.goal,
       state: record.state,
       currentStep: record.currentStep,
       totalSteps: record.task.steps.length,
@@ -347,6 +352,7 @@ export class TaskScheduler {
       dependsOn: [...(record.task.dependsOn ?? [])],
       submittedAt: record.submittedAt,
       lastResult: record.lastResult ? clone(record.lastResult) : undefined,
+      stepResults: record.stepResults ? clone(record.stepResults) : undefined,
     };
   }
 
@@ -361,8 +367,20 @@ export class TaskScheduler {
       if (!step.id.trim()) throw new Error('INVALID_STEP_ID');
       if (stepIds.has(step.id)) throw new Error(`DUPLICATE_STEP_ID: ${step.id}`);
       stepIds.add(step.id);
-      if (!Array.isArray(step.actions) || step.actions.length === 0) {
+      if (!Array.isArray(step.actions) || (step.actions.length === 0 && !step.skill) || (step.skill && step.actions.length > 0)) {
         throw new Error(`STEP_NEEDS_ACTIONS: ${step.id}`);
+      }
+      if (step.skill) {
+        if (!step.skill.id.trim() || !step.skill.params || typeof step.skill.params !== 'object') {
+          throw new Error(`INVALID_SKILL: ${step.id}`);
+        }
+        const definition = this.skills.get(step.skill.id);
+        if (!definition || !definition.inputSchema.safeParse(step.skill.params).success) {
+          throw new Error(`INVALID_SKILL: ${step.id}`);
+        }
+        if (step.idempotent === true && !definition.idempotent) {
+          throw new Error(`INVALID_SKILL: ${step.id}`);
+        }
       }
       if (step.timeoutMs !== undefined
         && (!Number.isInteger(step.timeoutMs) || step.timeoutMs < 1 || step.timeoutMs > 300_000)) {
